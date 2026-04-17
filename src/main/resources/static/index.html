@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RoastLens</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>RoastLens</h1>
+    <p class="subtitle">Configurable, evidence-driven commentary agent with a safe but sharp tone.</p>
+  </header>
+
+  <section class="panel">
+    <label for="text">Input text</label>
+    <textarea id="text" rows="8" placeholder="Paste a market note, opinion, claim, news paragraph, or your own analysis..."></textarea>
+
+    <div class="grid">
+      <div>
+        <label for="domain">Domain</label>
+        <select id="domain"></select>
+      </div>
+      <div>
+        <label for="persona">Persona</label>
+        <select id="persona"></select>
+      </div>
+    </div>
+
+    <button id="analyzeBtn">Generate commentary</button>
+    <p id="status" class="status"></p>
+  </section>
+
+  <section class="panel" id="resultPanel" hidden>
+    <h2>Structured result</h2>
+    <div class="result-block">
+      <h3>Summary</h3>
+      <p id="summary"></p>
+    </div>
+
+    <div class="result-block">
+      <h3>Evidence points</h3>
+      <ol id="evidencePoints"></ol>
+    </div>
+
+    <div class="result-block">
+      <h3>Counter point</h3>
+      <p id="counterPoint"></p>
+    </div>
+
+    <div class="result-block">
+      <h3>Confidence note</h3>
+      <p id="confidenceNote"></p>
+    </div>
+
+    <div class="result-block">
+      <h3>Disclaimer</h3>
+      <p id="disclaimer"></p>
+    </div>
+
+    <div class="result-block">
+      <h3>Style meta</h3>
+      <pre id="styleMeta"></pre>
+    </div>
+  </section>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

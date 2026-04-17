@@ -1,0 +1,18 @@
+services:
+  roastlens:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: roastlens
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - ROASTLENS_LLM_PROVIDER=${ROASTLENS_LLM_PROVIDER:-openai-compatible}
+      - ROASTLENS_LLM_BASE_URL=${ROASTLENS_LLM_BASE_URL:-https://api.openai.com}
+      - ROASTLENS_LLM_API_KEY=${ROASTLENS_LLM_API_KEY:-}
+      - ROASTLENS_LLM_MODEL=${ROASTLENS_LLM_MODEL:-gpt-4o-mini}
+      - ROASTLENS_LLM_TEMPERATURE=${ROASTLENS_LLM_TEMPERATURE:-0.4}
+      - ROASTLENS_LLM_TIMEOUT_SECONDS=${ROASTLENS_LLM_TIMEOUT_SECONDS:-45}
+      - ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT=${ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT:-false}

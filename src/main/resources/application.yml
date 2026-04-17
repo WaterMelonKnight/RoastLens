@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: roastlens
+
+logging:
+  level:
+    root: INFO
+    com.roastlens: DEBUG
+
+roastlens:
+  llm:
+    provider: ${ROASTLENS_LLM_PROVIDER:openai-compatible}
+    base-url: ${ROASTLENS_LLM_BASE_URL:https://api.openai.com}
+    api-key: ${ROASTLENS_LLM_API_KEY:}
+    model: ${ROASTLENS_LLM_MODEL:gpt-4o-mini}
+    temperature: ${ROASTLENS_LLM_TEMPERATURE:0.4}
+    timeout-seconds: ${ROASTLENS_LLM_TIMEOUT_SECONDS:45}
+    use-json-response-format: ${ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT:false}

@@ -1,0 +1,36 @@
+domains:
+  - name: finance
+    analysisFocus: "Business model quality, valuation narrative, catalyst credibility, risk asymmetry"
+    evidencePriority:
+      - "Numerical claims and comparables"
+      - "Cash flow or margin related statements"
+      - "Macro sensitivity and policy exposure"
+    disclaimerStyle: "For informational purposes only; does not constitute investment advice."
+    forbiddenClaims:
+      - "Guaranteed return claims"
+      - "Direct buy/sell timing instruction"
+      - "Target price certainty"
+
+  - name: tech
+    analysisFocus: "Product moat, execution velocity, distribution, monetization realism"
+    evidencePriority:
+      - "User growth and retention signals"
+      - "Technical feasibility constraints"
+      - "Competitive dynamics"
+    disclaimerStyle: "Opinionated analysis for information only; verify critical technical claims independently."
+    forbiddenClaims:
+      - "Absolute inevitability claims"
+      - "Unsafe or unlawful technical guidance"
+      - "Fabricated benchmark claims"
+
+  - name: general
+    analysisFocus: "Claim consistency, incentive alignment, causal plausibility"
+    evidencePriority:
+      - "Direct statements from source text"
+      - "Internal contradictions"
+      - "Missing context affecting interpretation"
+    disclaimerStyle: "Commentary is for informational purposes and should not be treated as professional advice."
+    forbiddenClaims:
+      - "Defamatory accusations without evidence"
+      - "Calls for harm"
+      - "Overconfident certainty language"
