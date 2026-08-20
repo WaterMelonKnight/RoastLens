@@ -20,4 +20,14 @@ public class SafetyPolicy {
     public String defaultFinanceDisclaimer() {
         return "This content is for informational and educational purposes only and does not constitute investment advice.";
     }
+
+    public List<String> financialRoastBoundaries() {
+        return List.of(
+                "No direct buy or sell instruction.",
+                "No leverage instruction, guaranteed return, or certain target price.",
+                "No exchange promotion, referral code, or trading-group solicitation.",
+                "No direct personal abuse.",
+                "Do not present an unprovided causal explanation or speculation as fact."
+        );
+    }
 }

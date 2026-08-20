@@ -126,6 +126,55 @@ ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT=false
 
 ## API
 
+### POST `/api/v1/roasts`
+
+Submit a standardized `FinancialEvent` manually and receive 3–5 content candidates. This API currently does **not** fetch events from FinStream REST, persist results, schedule work, publish content, or change the manual analyze Web UI.
+
+Request:
+
+```json
+{
+  "id": "event-id",
+  "source": "BINANCE",
+  "symbol": "BTCUSDT",
+  "eventType": "RAPID_DROP",
+  "eventTime": "2026-08-20T10:30:00Z",
+  "detectedAt": "2026-08-20T10:30:03Z",
+  "severity": 0.9,
+  "anomalyScore": 1.8,
+  "summary": "BTC dropped rapidly with abnormal volume",
+  "metrics": {
+    "return5m": -5.8,
+    "volumeRatio": 7.3
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "eventId": "event-id",
+  "candidates": [
+    {
+      "text": "BTC just used five minutes to remind the market that digital gold can still free-fall.",
+      "style": "dry",
+      "riskLevel": "low"
+    },
+    {
+      "text": "The long-term narrative briefly met the short-term elevator shaft.",
+      "style": "deadpan",
+      "riskLevel": "low"
+    },
+    {
+      "text": "Market confidence remains available, subject to sudden five-minute maintenance.",
+      "style": "sarcastic",
+      "riskLevel": "medium"
+    }
+  ]
+}
+```
+
 ### POST `/api/analyze`
 
 Request:
