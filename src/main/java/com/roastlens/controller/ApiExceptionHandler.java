@@ -1,5 +1,7 @@
 package com.roastlens.controller;
 
+import com.roastlens.connector.finstream.FinStreamClientException;
+import com.roastlens.connector.finstream.FinStreamEventNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -29,6 +31,16 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleUpstreamFailure(IllegalStateException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(FinStreamEventNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleFinStreamNotFound(FinStreamEventNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(FinStreamClientException.class)
+    public ResponseEntity<Map<String, String>> handleFinStreamFailure(FinStreamClientException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error(ex.getMessage()));
     }
 
