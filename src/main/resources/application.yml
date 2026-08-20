@@ -11,6 +11,9 @@ logging:
     com.roastlens: DEBUG
 
 roastlens:
+  roastability:
+    threshold: ${ROASTLENS_ROASTABILITY_THRESHOLD:0.6}
+    max-batch-size: ${ROASTLENS_ROAST_MAX_BATCH_SIZE:20}
   finstream:
     base-url: ${ROASTLENS_FINSTREAM_BASE_URL:http://localhost:8081}
     timeout-seconds: ${ROASTLENS_FINSTREAM_TIMEOUT_SECONDS:5}

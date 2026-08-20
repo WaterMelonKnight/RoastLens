@@ -21,7 +21,7 @@ public class FinancialEventInput {
 
     private Instant eventTime;
     private Instant detectedAt;
-    private Double severity;
+    private Object severity;
     private Double anomalyScore;
 
     @NotBlank(message = "summary is required")
@@ -41,8 +41,8 @@ public class FinancialEventInput {
     public void setEventTime(Instant eventTime) { this.eventTime = eventTime; }
     public Instant getDetectedAt() { return detectedAt; }
     public void setDetectedAt(Instant detectedAt) { this.detectedAt = detectedAt; }
-    public Double getSeverity() { return severity; }
-    public void setSeverity(Double severity) { this.severity = severity; }
+    public Object getSeverity() { return severity; }
+    public void setSeverity(Object severity) { this.severity = severity; }
     public Double getAnomalyScore() { return anomalyScore; }
     public void setAnomalyScore(Double anomalyScore) { this.anomalyScore = anomalyScore; }
     public String getSummary() { return summary; }

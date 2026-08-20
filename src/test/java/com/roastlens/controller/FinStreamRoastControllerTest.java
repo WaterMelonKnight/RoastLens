@@ -3,7 +3,11 @@ package com.roastlens.controller;
 import com.roastlens.connector.finstream.FinStreamClientException;
 import com.roastlens.connector.finstream.FinStreamEventNotFoundException;
 import com.roastlens.model.dto.RoastCandidate;
+import com.roastlens.model.dto.RoastBatchItem;
+import com.roastlens.model.dto.RoastBatchResponse;
 import com.roastlens.model.dto.RoastResponse;
+import com.roastlens.roastability.RoastabilityDecision;
+import com.roastlens.service.AbnormalEventRoastBatchService;
 import com.roastlens.service.FinStreamRoastService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class FinStreamRoastControllerTest {
     @Autowired private MockMvc mockMvc;
     @MockBean private FinStreamRoastService roastService;
+    @MockBean private AbnormalEventRoastBatchService batchService;
 
     @Test
     void createsRoastFromFinStreamEvent() throws Exception {
@@ -50,6 +55,44 @@ class FinStreamRoastControllerTest {
     @Test
     void returnsStableBadGatewayForIncompatibleResponse() throws Exception {
         assertBadGateway("FinStream returned an incompatible event response");
+    }
+
+    @Test
+    void createsAbnormalBatch() throws Exception {
+        when(batchService.processAbnormalEvents()).thenReturn(new RoastBatchResponse(1, 1, 0, 0, List.of(
+                new RoastBatchItem("evt-1", "BTCUSDT", "RAPID_DROP", RoastabilityDecision.ROAST,
+                        .87, "High severity and anomaly score", List.of(new RoastCandidate("joke", "dry", "low"))))));
+        mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.processed").value(1))
+                .andExpect(jsonPath("$.generated").value(1))
+                .andExpect(jsonPath("$.results[0].decision").value("ROAST"));
+    }
+
+    @Test
+    void returnsMixedAbnormalBatch() throws Exception {
+        when(batchService.processAbnormalEvents()).thenReturn(new RoastBatchResponse(2, 1, 1, 0, List.of(
+                new RoastBatchItem("1", "BTCUSDT", "RAPID_DROP", RoastabilityDecision.ROAST, .8, "strong", List.of()),
+                new RoastBatchItem("2", "ETHUSDT", "OTHER", RoastabilityDecision.SKIP, .2, "weak", List.of()))));
+        mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.skipped").value(1))
+                .andExpect(jsonPath("$.results[1].candidates").isEmpty());
+    }
+
+    @Test
+    void abnormalUpstreamFailureReturnsBadGateway() throws Exception {
+        when(batchService.processAbnormalEvents()).thenThrow(new FinStreamClientException("FinStream is unavailable"));
+        mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal"))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.error").value("FinStream is unavailable"));
+    }
+
+    @Test
+    void returnsEmptyAbnormalBatch() throws Exception {
+        when(batchService.processAbnormalEvents()).thenReturn(new RoastBatchResponse(0, 0, 0, 0, List.of()));
+        mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.processed").value(0))
+                .andExpect(jsonPath("$.results").isEmpty());
     }
 
     private void assertBadGateway(String message) throws Exception {

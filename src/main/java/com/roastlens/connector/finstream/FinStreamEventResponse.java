@@ -13,7 +13,7 @@ record FinStreamEventResponse(
         String eventType,
         Instant eventTime,
         Instant detectedAt,
-        Double severity,
+        Object severity,
         Double anomalyScore,
         String summary,
         Map<String, Object> metrics) {

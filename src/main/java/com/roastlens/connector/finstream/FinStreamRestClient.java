@@ -12,6 +12,8 @@ import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 
 @Component
 public class FinStreamRestClient implements FinancialEventSource {
@@ -55,6 +57,42 @@ public class FinStreamRestClient implements FinancialEventSource {
         }
     }
 
+    @Override
+    public List<FinancialEventInput> getAbnormalEvents() {
+        try {
+            FinStreamEventResponse[] response = webClient.get()
+                    .uri("/api/v1/events/abnormal")
+                    .exchangeToMono(result -> decodeAbnormalResponse(result.statusCode(),
+                            result.bodyToMono(FinStreamEventResponse[].class)))
+                    .timeout(timeout)
+                    .block();
+            if (response == null) {
+                throw invalidResponse();
+            }
+            return Arrays.stream(response).map(this::map).toList();
+        } catch (FinStreamClientException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            Throwable cause = Exceptions.unwrap(ex);
+            throw new FinStreamClientException("FinStream is unavailable", cause);
+        }
+    }
+
+    private Mono<FinStreamEventResponse[]> decodeAbnormalResponse(HttpStatusCode status,
+                                                                   Mono<FinStreamEventResponse[]> body) {
+        if (status.is4xxClientError()) {
+            return Mono.error(new FinStreamClientException("FinStream rejected the abnormal events request"));
+        }
+        if (status.is5xxServerError()) {
+            return Mono.error(new FinStreamClientException("FinStream service failed to process the request"));
+        }
+        if (!status.is2xxSuccessful()) {
+            return Mono.error(new FinStreamClientException("FinStream returned an unexpected response"));
+        }
+        return body.switchIfEmpty(Mono.error(invalidResponse()))
+                .onErrorMap(ex -> ex instanceof FinStreamClientException ? ex : invalidResponse(ex));
+    }
+
     private Mono<FinStreamEventResponse> decodeResponse(String eventId, HttpStatusCode status,
                                                          Mono<FinStreamEventResponse> body) {
         if (status.value() == 404) {
@@ -74,7 +112,7 @@ public class FinStreamRestClient implements FinancialEventSource {
     }
 
     private FinancialEventInput map(FinStreamEventResponse source) {
-        if (isBlank(source.id()) || isBlank(source.source()) || isBlank(source.symbol())
+        if (source == null || isBlank(source.id()) || isBlank(source.source()) || isBlank(source.symbol())
                 || isBlank(source.eventType()) || isBlank(source.summary())) {
             throw invalidResponse();
         }
