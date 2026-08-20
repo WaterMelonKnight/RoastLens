@@ -71,7 +71,7 @@ public class OpenAiCompatibleClient implements LlmClient {
         }
 
         String content = response.getChoices().get(0).getMessage().getContent();
-        log.debug("Raw LLM output: {}", content);
+        log.debug("Received LLM output ({} characters)", content.length());
         return new LlmResponse(content);
     }
 }
