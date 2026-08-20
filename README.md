@@ -63,6 +63,17 @@ mvn spring-boot:run
 
 Open `http://localhost:8080`.
 
+## Baseline verification
+
+The MVP request path is `Web UI -> POST /api/analyze -> RoastAnalysisService -> PromptBuilder -> LlmClient -> structured response`. Run the automated baseline with:
+
+```bash
+mvn test
+mvn package
+```
+
+The tests start the Spring application context, exercise `/api/meta` and `/api/analyze`, and verify structured-output parsing, validation, normalization, and finance disclaimer behavior. They replace `LlmClient` with mocks and never call a real LLM API. GitHub Actions runs the test suite and then packages the executable jar for every pull request and every push to `main`.
+
 ## Quick Start (Docker)
 
 ```bash

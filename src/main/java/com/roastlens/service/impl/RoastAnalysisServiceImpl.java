@@ -92,9 +92,15 @@ public class RoastAnalysisServiceImpl implements RoastAnalysisService {
     }
 
     private AnalyzeResponse parseStructuredResponse(String rawContent) {
+        if (rawContent == null || rawContent.isBlank()) {
+            throw new IllegalStateException("LLM returned empty structured output");
+        }
         try {
             String sanitized = sanitizeJson(rawContent);
             JsonNode root = objectMapper.readTree(sanitized);
+            if (root == null || !root.isObject()) {
+                throw new IllegalStateException("Structured LLM output must be a JSON object");
+            }
 
             AnalyzeResponse response = new AnalyzeResponse();
             response.setSummary(asText(root, "summary"));
@@ -114,6 +120,8 @@ public class RoastAnalysisServiceImpl implements RoastAnalysisService {
             response.setEvidencePoints(evidence);
 
             return response;
+        } catch (IllegalStateException ex) {
+            throw ex;
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to parse structured LLM output as JSON", ex);
         }

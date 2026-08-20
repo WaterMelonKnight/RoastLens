@@ -7,10 +7,7 @@ import com.roastlens.model.dto.AnalyzeResponse;
 import com.roastlens.persona.PersonaRegistry;
 import com.roastlens.service.RoastAnalysisService;
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
@@ -38,13 +35,4 @@ public class AnalyzeController {
         return roastAnalysisService.analyze(request);
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
-    }
-
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<Map<String, String>> handleServerError(IllegalStateException ex) {
-        return ResponseEntity.internalServerError().body(Map.of("error", ex.getMessage()));
-    }
 }
