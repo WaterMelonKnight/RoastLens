@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -108,6 +109,86 @@ class FinStreamRestClientTest {
     void rejectsMissingRequiredContractField() {
         enqueue(200, "{\"id\":\"evt\",\"source\":\"BINANCE\"}");
         assertIncompatibleResponse();
+    }
+
+    @Test
+    void mapsAbnormalEventsUsingFinStreamArrayContract() throws InterruptedException {
+        enqueue(200, "[" + actualContractJson("evt-1", "RAPID_DROP") + "]");
+        List<FinancialEventInput> events = client.getAbnormalEvents();
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).getSeverity()).isEqualTo("HIGH");
+        assertThat(events.get(0).getMetrics()).containsEntry("return5m", -4);
+        assertThat(server.takeRequest().getPath()).isEqualTo("/api/v1/events/abnormal");
+    }
+
+    @Test
+    void mapsMultipleAbnormalEventsIncludingUnknownType() {
+        enqueue(200, "[" + actualContractJson("evt-1", "RAPID_PUMP") + ","
+                + actualContractJson("evt-2", "NEW_SIGNAL") + "]");
+        assertThat(client.getAbnormalEvents()).extracting(FinancialEventInput::getEventType)
+                .containsExactly("RAPID_PUMP", "NEW_SIGNAL");
+    }
+
+    @Test
+    void mapsEmptyAbnormalList() {
+        enqueue(200, "[]");
+        assertThat(client.getAbnormalEvents()).isEmpty();
+    }
+
+    @Test
+    void mapsAbnormalEventMissingOptionalFields() {
+        enqueue(200, "[{\"id\":\"evt\",\"source\":\"BINANCE\",\"symbol\":\"BTCUSDT\","
+                + "\"eventType\":\"OTHER\",\"summary\":\"summary\"}]");
+        FinancialEventInput event = client.getAbnormalEvents().get(0);
+        assertThat(event.getSeverity()).isNull();
+        assertThat(event.getAnomalyScore()).isNull();
+        assertThat(event.getMetrics()).isNull();
+    }
+
+    @Test
+    void abnormalServerErrorIsStable() {
+        enqueue(500, "sensitive upstream body");
+        assertThatThrownBy(client::getAbnormalEvents).isInstanceOf(FinStreamClientException.class)
+                .hasMessage("FinStream service failed to process the request");
+    }
+
+    @Test
+    void abnormalTimeoutIsStable() {
+        server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
+        assertThatThrownBy(client::getAbnormalEvents).isInstanceOf(FinStreamClientException.class)
+                .hasMessage("FinStream is unavailable");
+    }
+
+    @Test
+    void malformedAbnormalJsonIsIncompatible() {
+        enqueue(200, "[not-json");
+        assertAbnormalIncompatible();
+    }
+
+    @Test
+    void wrapperObjectIsRejectedAsIncompatibleContract() {
+        enqueue(200, "{\"events\":[]}");
+        assertAbnormalIncompatible();
+    }
+
+    @Test
+    void abnormalItemMissingRequiredFieldIsIncompatible() {
+        enqueue(200, "[{\"id\":\"evt\"}]");
+        assertAbnormalIncompatible();
+    }
+
+    private void assertAbnormalIncompatible() {
+        assertThatThrownBy(client::getAbnormalEvents).isInstanceOf(FinStreamClientException.class)
+                .hasMessage("FinStream returned an incompatible event response");
+    }
+
+    private String actualContractJson(String id, String type) {
+        return """
+                {"id":"%s","source":"BINANCE","symbol":"BTCUSDT","eventType":"%s",
+                 "eventTime":"2026-08-20T10:30:00Z","detectedAt":"2026-08-20T10:30:03Z",
+                 "severity":"HIGH","anomalyScore":2.0,"summary":"abnormal event",
+                 "metrics":{"return5m":-4},"evidence":{"price":100}}
+                """.formatted(id, type);
     }
 
     private void assertIncompatibleResponse() {
