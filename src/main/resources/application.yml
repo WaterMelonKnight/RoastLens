@@ -11,6 +11,9 @@ logging:
     com.roastlens: DEBUG
 
 roastlens:
+  finstream:
+    base-url: ${ROASTLENS_FINSTREAM_BASE_URL:http://localhost:8081}
+    timeout-seconds: ${ROASTLENS_FINSTREAM_TIMEOUT_SECONDS:5}
   llm:
     provider: ${ROASTLENS_LLM_PROVIDER:openai-compatible}
     base-url: ${ROASTLENS_LLM_BASE_URL:https://api.openai.com}

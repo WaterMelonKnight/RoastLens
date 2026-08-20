@@ -95,6 +95,8 @@ Open `http://localhost:8080`.
 | `ROASTLENS_LLM_TEMPERATURE` | no | `0.4` | Generation temperature |
 | `ROASTLENS_LLM_TIMEOUT_SECONDS` | no | `45` | Request timeout |
 | `ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT` | no | `false` | Whether to request JSON response format on compatible providers |
+| `ROASTLENS_FINSTREAM_BASE_URL` | no | `http://localhost:8081` | FinStream REST API base URL (override if FinStream uses another port) |
+| `ROASTLENS_FINSTREAM_TIMEOUT_SECONDS` | no | `5` | FinStream request timeout |
 
 ### Provider switch examples (OpenAI-compatible)
 
@@ -126,9 +128,26 @@ ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT=false
 
 ## API
 
+### FinStream integration
+
+RoastLens treats FinStream as the owner of the market-event schema and uses a thin REST connector to map only the fields needed by `FinancialEventInput`. To try the integration locally:
+
+1. Start FinStream and identify an existing FinancialEvent `eventId`.
+2. Set `ROASTLENS_FINSTREAM_BASE_URL` to its REST base URL (for example, `http://localhost:8081`; this fallback is configurable because the FinStream repository was not available here to verify its default port).
+3. Start RoastLens and invoke:
+
+```bash
+curl -X POST \
+  http://localhost:8080/api/v1/roasts/from-finstream/{eventId}
+```
+
+This integration is **manual trigger only**, **single event only**, and **REST connector only**. It does not discover FinStream automatically. Polling, scheduling, abnormal-event batch processing, persistence, processed-event deduplication, automatic publishing, and MCP integration are not supported.
+
+The call fetches `GET /api/v1/events/{eventId}`, maps the response at the connector boundary, and delegates candidate generation to the existing `FinancialEventRoastService`. FinStream 404 responses become API 404 responses; unavailable, timeout, upstream 5xx, empty, malformed, or incompatible responses become stable 502 responses without exposing upstream response bodies.
+
 ### POST `/api/v1/roasts`
 
-Submit a standardized `FinancialEvent` manually and receive 3–5 content candidates. This API currently does **not** fetch events from FinStream REST, persist results, schedule work, publish content, or change the manual analyze Web UI.
+Submit a standardized `FinancialEvent` manually and receive 3–5 content candidates. This API does not persist results, schedule work, publish content, or change the manual analyze Web UI.
 
 Request:
 
