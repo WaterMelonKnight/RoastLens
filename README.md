@@ -95,6 +95,7 @@ Open `http://localhost:8080`.
 | `ROASTLENS_LLM_TEMPERATURE` | no | `0.4` | Generation temperature |
 | `ROASTLENS_LLM_TIMEOUT_SECONDS` | no | `45` | Request timeout |
 | `ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT` | no | `false` | Whether to request JSON response format on compatible providers |
+| `ROASTLENS_DEFAULT_LANGUAGE` | no | `zh-CN` | Default candidate-text language; supported values are `zh-CN` and `en-US` |
 | `ROASTLENS_FINSTREAM_BASE_URL` | no | `http://localhost:8081` | FinStream REST API base URL (override if FinStream uses another port) |
 | `ROASTLENS_FINSTREAM_TIMEOUT_SECONDS` | no | `5` | FinStream request timeout |
 | `ROASTLENS_ROASTABILITY_THRESHOLD` | no | `0.6` | Inclusive score threshold for generating candidates |
@@ -140,7 +141,7 @@ RoastLens treats FinStream as the owner of the market-event schema and uses a th
 
 ```bash
 curl -X POST \
-  http://localhost:8080/api/v1/roasts/from-finstream/{eventId}
+  "http://localhost:8080/api/v1/roasts/from-finstream/{eventId}?lang=zh-CN"
 ```
 
 This integration is **manual trigger only** and **REST connector only**. It does not discover FinStream automatically. Polling, scheduling, persistence, permanent processed-event deduplication, automatic publishing, and MCP integration are not supported.
@@ -153,12 +154,23 @@ Trigger one bounded batch manually (there is no request body):
 
 ```bash
 curl -X POST \
-  http://localhost:8080/api/v1/roasts/from-finstream/abnormal
+  "http://localhost:8080/api/v1/roasts/from-finstream/abnormal?lang=zh-CN"
 ```
+
+The optional request language overrides `ROASTLENS_DEFAULT_LANGUAGE`. The default is `zh-CN`, and `en-US` is also
+supported. Only candidate `text` is localized: JSON field names, `style`, `riskLevel`, symbols, and `eventType` remain
+machine-readable values. Unsupported locales return HTTP 400 rather than silently falling back.
 
 The flow is `FinStream abnormal events -> deterministic roastability evaluation -> selected events -> RoastCandidate`. RoastLens consumes FinStream's current `GET /api/v1/events/abnormal` contract, which is a JSON array of FinancialEvent objects in FinStream's own order. Only the fields needed by RoastLens are mapped; extra owner fields such as `evidence` are ignored.
 
-The deterministic score is clamped to `0.0..1.0`: a `0.1` base plus normalized severity and anomaly contributions (up to `0.5` each), `0.1` for `RAPID_DROP`, `RAPID_PUMP`, or `ABNORMAL_VOLUME`, and `0.4` each for `abs(return5m) >= 5` or `volumeRatio >= 3`. Numeric severity and FinStream's `LOW`/`MEDIUM`/`HIGH`/`CRITICAL` labels are supported. Unknown event types are evaluated normally rather than rejected, and missing or malformed optional metrics contribute nothing.
+The deterministic score is clamped to `0.0..1.0`: `0.05` base, up to `0.35` each for severity and normalized anomaly
+strength, `0.03` for a known event type, and smooth capped bonuses up to `0.15` each for absolute five-minute return and
+volume ratio. Return reaches its cap at 15%; volume has no bonus at 1x and reaches its cap at 10x, so crossing 3x no
+longer creates a binary jump. FinStream defines `anomalyScore` as observed magnitude divided by that rule's configured
+trigger (1.0 means the trigger; values are unbounded), so RoastLens linearly normalizes 0..4 to 0..1 before weighting it.
+FinStream currently emits string severity (`MEDIUM` below anomaly score 2, otherwise `HIGH`); RoastLens also safely
+accepts the pre-existing numeric and `LOW`/`MEDIUM`/`HIGH`/`CRITICAL` compatibility forms. Unknown event types are
+evaluated normally, and missing or malformed optional metrics contribute nothing.
 
 Scores at or above `ROASTLENS_ROASTABILITY_THRESHOLD` generate candidates; lower scores are returned as `SKIP` without invoking the LLM. A candidate-generation failure is returned as an item-level `ERROR` and later items continue, while a failure fetching the abnormal-event list remains a request-level 502. Within one request, duplicate event IDs keep their first occurrence. At most `ROASTLENS_ROAST_MAX_BATCH_SIZE` unique events (default 20) are processed, preserving FinStream order; remaining events are truncated.
 

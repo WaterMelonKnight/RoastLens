@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -30,7 +31,7 @@ class FinStreamRoastControllerTest {
 
     @Test
     void createsRoastFromFinStreamEvent() throws Exception {
-        when(roastService.generateFromFinStream("evt-123")).thenReturn(new RoastResponse("evt-123", List.of(
+        when(roastService.generateFromFinStream("evt-123", null)).thenReturn(new RoastResponse("evt-123", List.of(
                 new RoastCandidate("market joke", "dry", "low"))));
         mockMvc.perform(post("/api/v1/roasts/from-finstream/evt-123"))
                 .andExpect(status().isOk())
@@ -39,8 +40,29 @@ class FinStreamRoastControllerTest {
     }
 
     @Test
+    void requestLanguageIsPassedToSingleAndBatchServices() throws Exception {
+        when(roastService.generateFromFinStream("evt-123", "en-US"))
+                .thenReturn(new RoastResponse("evt-123", List.of()));
+        when(batchService.processAbnormalEvents("zh-CN"))
+                .thenReturn(new RoastBatchResponse(0, 0, 0, 0, List.of()));
+        mockMvc.perform(post("/api/v1/roasts/from-finstream/evt-123?lang=en-US")).andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal?lang=zh-CN")).andExpect(status().isOk());
+        verify(roastService).generateFromFinStream("evt-123", "en-US");
+        verify(batchService).processAbnormalEvents("zh-CN");
+    }
+
+    @Test
+    void unsupportedLanguageReturnsStableBadRequest() throws Exception {
+        when(roastService.generateFromFinStream("evt-123", "abc"))
+                .thenThrow(new IllegalArgumentException("Unsupported language: abc"));
+        mockMvc.perform(post("/api/v1/roasts/from-finstream/evt-123?lang=abc"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Unsupported language: abc"));
+    }
+
+    @Test
     void returnsNotFoundForMissingFinStreamEvent() throws Exception {
-        when(roastService.generateFromFinStream("missing"))
+        when(roastService.generateFromFinStream("missing", null))
                 .thenThrow(new FinStreamEventNotFoundException("missing"));
         mockMvc.perform(post("/api/v1/roasts/from-finstream/missing"))
                 .andExpect(status().isNotFound())
@@ -59,7 +81,7 @@ class FinStreamRoastControllerTest {
 
     @Test
     void createsAbnormalBatch() throws Exception {
-        when(batchService.processAbnormalEvents()).thenReturn(new RoastBatchResponse(1, 1, 0, 0, List.of(
+        when(batchService.processAbnormalEvents(null)).thenReturn(new RoastBatchResponse(1, 1, 0, 0, List.of(
                 new RoastBatchItem("evt-1", "BTCUSDT", "RAPID_DROP", RoastabilityDecision.ROAST,
                         .87, "High severity and anomaly score", List.of(new RoastCandidate("joke", "dry", "low"))))));
         mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal"))
@@ -71,7 +93,7 @@ class FinStreamRoastControllerTest {
 
     @Test
     void returnsMixedAbnormalBatch() throws Exception {
-        when(batchService.processAbnormalEvents()).thenReturn(new RoastBatchResponse(2, 1, 1, 0, List.of(
+        when(batchService.processAbnormalEvents(null)).thenReturn(new RoastBatchResponse(2, 1, 1, 0, List.of(
                 new RoastBatchItem("1", "BTCUSDT", "RAPID_DROP", RoastabilityDecision.ROAST, .8, "strong", List.of()),
                 new RoastBatchItem("2", "ETHUSDT", "OTHER", RoastabilityDecision.SKIP, .2, "weak", List.of()))));
         mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal"))
@@ -81,7 +103,7 @@ class FinStreamRoastControllerTest {
 
     @Test
     void abnormalUpstreamFailureReturnsBadGateway() throws Exception {
-        when(batchService.processAbnormalEvents()).thenThrow(new FinStreamClientException("FinStream is unavailable"));
+        when(batchService.processAbnormalEvents(null)).thenThrow(new FinStreamClientException("FinStream is unavailable"));
         mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.error").value("FinStream is unavailable"));
@@ -89,14 +111,14 @@ class FinStreamRoastControllerTest {
 
     @Test
     void returnsEmptyAbnormalBatch() throws Exception {
-        when(batchService.processAbnormalEvents()).thenReturn(new RoastBatchResponse(0, 0, 0, 0, List.of()));
+        when(batchService.processAbnormalEvents(null)).thenReturn(new RoastBatchResponse(0, 0, 0, 0, List.of()));
         mockMvc.perform(post("/api/v1/roasts/from-finstream/abnormal"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.processed").value(0))
                 .andExpect(jsonPath("$.results").isEmpty());
     }
 
     private void assertBadGateway(String message) throws Exception {
-        when(roastService.generateFromFinStream("evt")).thenThrow(new FinStreamClientException(message));
+        when(roastService.generateFromFinStream("evt", null)).thenThrow(new FinStreamClientException(message));
         mockMvc.perform(post("/api/v1/roasts/from-finstream/evt"))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.error").value(message));

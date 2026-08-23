@@ -11,6 +11,8 @@ logging:
     com.roastlens: DEBUG
 
 roastlens:
+  content:
+    default-language: ${ROASTLENS_DEFAULT_LANGUAGE:zh-CN}
   roastability:
     threshold: ${ROASTLENS_ROASTABILITY_THRESHOLD:0.6}
     max-batch-size: ${ROASTLENS_ROAST_MAX_BATCH_SIZE:20}

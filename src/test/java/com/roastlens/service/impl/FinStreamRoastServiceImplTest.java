@@ -2,6 +2,9 @@ package com.roastlens.service.impl;
 
 import com.roastlens.financial.FinancialEventInput;
 import com.roastlens.financial.FinancialEventSource;
+import com.roastlens.config.RoastLensProperties;
+import com.roastlens.generation.GenerationOptions;
+import com.roastlens.generation.GenerationOptionsResolver;
 import com.roastlens.model.dto.RoastResponse;
 import com.roastlens.service.FinancialEventRoastService;
 import org.junit.jupiter.api.Test;
@@ -21,13 +24,14 @@ class FinStreamRoastServiceImplTest {
         FinancialEventInput event = new FinancialEventInput();
         RoastResponse expected = new RoastResponse("evt-123", List.of());
         when(source.getEvent("evt-123")).thenReturn(event);
-        when(roastService.generateCandidates(event)).thenReturn(expected);
+        when(roastService.generateCandidates(event, new GenerationOptions("zh-CN"))).thenReturn(expected);
 
-        RoastResponse actual = new FinStreamRoastServiceImpl(source, roastService)
+        RoastResponse actual = new FinStreamRoastServiceImpl(source, roastService,
+                new GenerationOptionsResolver(new RoastLensProperties()))
                 .generateFromFinStream("evt-123");
 
         assertThat(actual).isSameAs(expected);
         verify(source).getEvent("evt-123");
-        verify(roastService).generateCandidates(event);
+        verify(roastService).generateCandidates(event, new GenerationOptions("zh-CN"));
     }
 }

@@ -19,35 +19,35 @@ public class DefaultRoastabilityEvaluator implements RoastabilityEvaluator {
     @Override
     public RoastabilityResult evaluate(FinancialEventInput event) {
         double severity = severity(event.getSeverity());
-        double anomaly = normalized(event.getAnomalyScore());
+        // FinStream's score is observed magnitude / configured trigger, so 1 is the trigger and it is unbounded.
+        double anomaly = anomalyStrength(event.getAnomalyScore());
         boolean known = event.getEventType() != null && KNOWN_TYPES.contains(event.getEventType().toUpperCase(Locale.ROOT));
         Double return5m = metric(event.getMetrics(), "return5m");
         Double volumeRatio = metric(event.getMetrics(), "volumeRatio");
-        boolean largeReturn = return5m != null && Math.abs(return5m) >= 5;
-        boolean highVolume = volumeRatio != null && volumeRatio >= 3;
+        double returnContribution = return5m == null ? 0 : 0.15 * clamp(Math.abs(return5m) / 15.0);
+        double volumeContribution = volumeRatio == null ? 0 : 0.15 * clamp((volumeRatio - 1.0) / 9.0);
 
-        double score = clamp(0.1 + severity * 0.5 + anomaly * 0.5 + (known ? 0.1 : 0)
-                + (largeReturn ? 0.4 : 0) + (highVolume ? 0.4 : 0));
+        double score = clamp(0.05 + severity * 0.35 + anomaly * 0.35 + (known ? 0.03 : 0)
+                + returnContribution + volumeContribution);
         RoastabilityDecision decision = score >= threshold ? RoastabilityDecision.ROAST : RoastabilityDecision.SKIP;
         return new RoastabilityResult(score, decision,
-                reason(decision, severity, anomaly, known, largeReturn, highVolume));
+                reason(decision, severity, anomaly, returnContribution, volumeContribution));
     }
 
     private String reason(RoastabilityDecision decision, double severity, double anomaly,
-                          boolean known, boolean largeReturn, boolean highVolume) {
-        if (severity >= 0.8 && anomaly >= 0.7) return "High severity and anomaly score";
-        if (known && highVolume) return "Known abnormal event with elevated volume ratio";
-        if (largeReturn) return "Large short-term price move";
-        if (highVolume) return "Elevated volume ratio";
+                          double returnContribution, double volumeContribution) {
+        if (severity >= 0.8 && anomaly >= 0.45) return "High severity with moderate anomaly signal";
+        if (returnContribution >= 0.08 && volumeContribution >= 0.08) return "Strong price and volume anomaly";
+        if (volumeContribution >= 0.03) return "Elevated volume with otherwise modest anomaly strength";
+        if (returnContribution >= 0.04) return "Moderate short-term price move";
         if (severity >= 0.8) return "High severity";
-        if (anomaly >= 0.8) return "Strong anomaly signal";
-        if (decision == RoastabilityDecision.ROAST && known) return "Known abnormal event with sufficient anomaly strength";
+        if (anomaly >= 0.75) return "Strong anomaly signal";
         if (severity <= 0.25 && anomaly <= 0.25) return "Low severity and weak anomaly signal";
-        return "Insufficient anomaly strength";
+        return decision == RoastabilityDecision.ROAST ? "Moderate anomaly strength" : "Weak anomaly signal";
     }
 
     private double severity(Object value) {
-        if (value instanceof Number number) return normalized(number.doubleValue());
+        if (value instanceof Number number) return Double.isFinite(number.doubleValue()) ? clamp(number.doubleValue()) : 0;
         if (value instanceof String text) {
             return switch (text.toUpperCase(Locale.ROOT)) {
                 case "CRITICAL", "HIGH" -> 1;
@@ -67,9 +67,9 @@ public class DefaultRoastabilityEvaluator implements RoastabilityEvaluator {
         return Double.isFinite(result) ? result : null;
     }
 
-    private double normalized(Double value) {
+    private double anomalyStrength(Double value) {
         if (value == null || !Double.isFinite(value)) return 0;
-        return clamp(value);
+        return clamp(value / 4.0);
     }
 
     private double clamp(double value) { return Math.max(0, Math.min(1, value)); }

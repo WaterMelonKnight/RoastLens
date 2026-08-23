@@ -6,9 +6,21 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class RoastLensProperties {
 
     private final Llm llm = new Llm();
+    private final Content content = new Content();
 
     public Llm getLlm() {
         return llm;
+    }
+
+    public Content getContent() {
+        return content;
+    }
+
+    public static class Content {
+        private String defaultLanguage = "zh-CN";
+
+        public String getDefaultLanguage() { return defaultLanguage; }
+        public void setDefaultLanguage(String defaultLanguage) { this.defaultLanguage = defaultLanguage; }
     }
 
     public static class Llm {
