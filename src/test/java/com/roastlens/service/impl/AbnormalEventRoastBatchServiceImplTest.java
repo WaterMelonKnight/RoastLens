@@ -137,7 +137,16 @@ class AbnormalEventRoastBatchServiceImplTest {
 
         RoastBatchResponse result = service.processAbnormalEvents();
 
-        assertThat(result.results()).extracting(item -> item.eventId()).containsExactly("1");
+        assertThat(result.processed()).isEqualTo(4);
+        assertThat(result.generated()).isOne();
+        assertThat(result.skipped()).isEqualTo(3);
+        assertThat(result.results()).extracting(item -> item.eventId()).containsExactly("1", "2", "3", "4");
+        assertThat(result.results().subList(1, 4))
+                .allSatisfy(item -> {
+                    assertThat(item.decision()).isEqualTo(RoastabilityDecision.SKIP);
+                    assertThat(item.reason()).isEqualTo("Duplicate event without meaningful escalation");
+                    assertThat(item.candidates()).isEmpty();
+                });
         verify(roastService, times(1)).generateCandidates(any(), any(GenerationOptions.class));
         verify(evaluator, times(1)).evaluate(any());
     }
@@ -152,7 +161,11 @@ class AbnormalEventRoastBatchServiceImplTest {
 
         RoastBatchResponse result = service.processAbnormalEvents("en-US");
 
-        assertThat(result.results()).extracting(item -> item.eventId()).containsExactly("1", "4");
+        assertThat(result.results()).extracting(item -> item.eventId()).containsExactly("1", "2", "3", "4");
+        assertThat(result.results()).extracting(item -> item.decision()).containsExactly(
+                RoastabilityDecision.ROAST, RoastabilityDecision.SKIP,
+                RoastabilityDecision.SKIP, RoastabilityDecision.ROAST);
+        verify(evaluator, times(2)).evaluate(any());
         verify(roastService, times(2)).generateCandidates(any(), eq(new GenerationOptions("en-US")));
     }
 
@@ -178,8 +191,18 @@ class AbnormalEventRoastBatchServiceImplTest {
                 volumeEvent("3", "BTCUSDT", 3.02, 1.02), volumeEvent("4", "ETHUSDT", 3, 1)));
         roastAll();
 
-        assertThat(service.processAbnormalEvents().results()).extracting(item -> item.eventId())
-                .containsExactly("1", "4");
+        RoastBatchResponse result = service.processAbnormalEvents();
+        assertThat(result.results()).extracting(item -> item.eventId()).containsExactly("1", "2", "3", "4");
+        assertThat(result.results()).extracting(item -> item.decision()).containsExactly(
+                RoastabilityDecision.ROAST, RoastabilityDecision.SKIP,
+                RoastabilityDecision.SKIP, RoastabilityDecision.ROAST);
+        assertThat(result.results().subList(1, 3)).allSatisfy(item ->
+                assertThat(item.reason()).isEqualTo("Duplicate event without meaningful escalation"));
+        assertThat(result.processed()).isEqualTo(4);
+        assertThat(result.generated()).isEqualTo(2);
+        assertThat(result.skipped()).isEqualTo(2);
+        verify(evaluator, times(2)).evaluate(any());
+        verify(roastService, times(2)).generateCandidates(any(), any(GenerationOptions.class));
     }
 
     private GenerationOptionsResolver optionsResolver() { return new GenerationOptionsResolver(new RoastLensProperties()); }

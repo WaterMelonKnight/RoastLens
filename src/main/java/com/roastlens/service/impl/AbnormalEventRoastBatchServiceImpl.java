@@ -8,6 +8,7 @@ import com.roastlens.model.dto.RoastBatchItem;
 import com.roastlens.model.dto.RoastBatchResponse;
 import com.roastlens.model.dto.RoastResponse;
 import com.roastlens.novelty.EventNoveltyFilter;
+import com.roastlens.novelty.NoveltyResult;
 import com.roastlens.roastability.RoastabilityDecision;
 import com.roastlens.roastability.RoastabilityEvaluator;
 import com.roastlens.roastability.RoastabilityProperties;
@@ -62,14 +63,17 @@ public class AbnormalEventRoastBatchServiceImpl implements AbnormalEventRoastBat
 
         // This map lives only for this invocation: no cross-request processed history is retained.
         Map<String, FinancialEventInput> representatives = new LinkedHashMap<>();
-        List<FinancialEventInput> selected = new ArrayList<>();
+        List<ExaminedEvent> examined = new ArrayList<>();
+        int selectedCount = 0;
         for (FinancialEventInput event : uniqueIds.values()) {
             String key = duplicateKey(event);
             FinancialEventInput representative = representatives.get(key);
-            if (representative == null || noveltyFilter.evaluate(representative, event).selected()) {
+            NoveltyResult novelty = representative == null ? null : noveltyFilter.evaluate(representative, event);
+            examined.add(new ExaminedEvent(event, novelty));
+            if (novelty == null || novelty.selected()) {
                 representatives.put(key, event);
-                selected.add(event);
-                if (selected.size() == maxBatchSize) break;
+                selectedCount++;
+                if (selectedCount == maxBatchSize) break;
             }
         }
 
@@ -77,7 +81,14 @@ public class AbnormalEventRoastBatchServiceImpl implements AbnormalEventRoastBat
         int generated = 0;
         int skipped = 0;
         int errors = 0;
-        for (FinancialEventInput event : selected) {
+        for (ExaminedEvent examinedEvent : examined) {
+            FinancialEventInput event = examinedEvent.event();
+            if (examinedEvent.suppressed()) {
+                skipped++;
+                results.add(new RoastBatchItem(event.getId(), event.getSymbol(), event.getEventType(),
+                        RoastabilityDecision.SKIP, 0.0, examinedEvent.novelty().reason(), List.of()));
+                continue;
+            }
             RoastabilityResult evaluation = evaluator.evaluate(event);
             if (evaluation.decision() == RoastabilityDecision.SKIP) {
                 skipped++;
@@ -99,6 +110,12 @@ public class AbnormalEventRoastBatchServiceImpl implements AbnormalEventRoastBat
     private String duplicateKey(FinancialEventInput event) {
         return String.valueOf(event.getSymbol()).toUpperCase(java.util.Locale.ROOT) + "|"
                 + String.valueOf(event.getEventType()).toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private record ExaminedEvent(FinancialEventInput event, NoveltyResult novelty) {
+        private boolean suppressed() {
+            return novelty != null && !novelty.selected();
+        }
     }
 
     private RoastBatchItem item(FinancialEventInput event, RoastabilityDecision decision,
