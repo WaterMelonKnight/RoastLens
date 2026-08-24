@@ -2,6 +2,7 @@ package com.roastlens.controller;
 
 import com.roastlens.connector.finstream.FinStreamClientException;
 import com.roastlens.connector.finstream.FinStreamEventNotFoundException;
+import com.roastlens.content.ContentLanguageConflictException;
 import com.roastlens.model.dto.RoastCandidate;
 import com.roastlens.model.dto.RoastBatchItem;
 import com.roastlens.model.dto.RoastBatchResponse;
@@ -58,6 +59,16 @@ class FinStreamRoastControllerTest {
         mockMvc.perform(post("/api/v1/roasts/from-finstream/evt-123?lang=abc"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Unsupported language: abc"));
+    }
+
+    @Test
+    void languageMismatchReturnsConflict() throws Exception {
+        when(roastService.generateFromFinStream("evt-123", "en-US"))
+                .thenThrow(new ContentLanguageConflictException("evt-123", "zh-CN", "en-US"));
+        mockMvc.perform(post("/api/v1/roasts/from-finstream/evt-123?lang=en-US"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value(
+                        "Event evt-123 was already processed in zh-CN and cannot be returned as en-US"));
     }
 
     @Test

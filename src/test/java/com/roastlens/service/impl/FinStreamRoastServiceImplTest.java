@@ -7,13 +7,20 @@ import com.roastlens.generation.GenerationOptions;
 import com.roastlens.generation.GenerationOptionsResolver;
 import com.roastlens.model.dto.RoastResponse;
 import com.roastlens.service.FinancialEventRoastService;
+import com.roastlens.service.ContentInventoryService;
+import com.roastlens.content.ContentStatus;
+import com.roastlens.content.ContentLanguageConflictException;
+import com.roastlens.model.dto.ContentCandidateResponse;
+import com.roastlens.model.dto.ContentItemResponse;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class FinStreamRoastServiceImplTest {
@@ -33,5 +40,43 @@ class FinStreamRoastServiceImplTest {
         assertThat(actual).isSameAs(expected);
         verify(source).getEvent("evt-123");
         verify(roastService).generateCandidates(event, new GenerationOptions("zh-CN"));
+    }
+
+    @Test
+    void repeatedEventReturnsPersistedCandidatesWithoutFetchingOrGenerating() {
+        FinancialEventSource source = mock(FinancialEventSource.class);
+        FinancialEventRoastService roastService = mock(FinancialEventRoastService.class);
+        ContentInventoryService inventory = mock(ContentInventoryService.class);
+        ContentItemResponse existing = new ContentItemResponse("content-1", "evt-123", "FINSTREAM", "BTCUSDT",
+                "RAPID_DROP", null, null, .8, "zh-CN", ContentStatus.GENERATED, null, null,
+                List.of(new ContentCandidateResponse("candidate-1", "saved joke", "dry", "low", null)));
+        when(inventory.findBySourceEventId("evt-123")).thenReturn(java.util.Optional.of(existing));
+
+        RoastResponse response = new FinStreamRoastServiceImpl(source, roastService,
+                new GenerationOptionsResolver(new RoastLensProperties()), inventory)
+                .generateFromFinStream("evt-123", "zh-CN");
+
+        assertThat(response.getCandidates()).singleElement().satisfies(candidate ->
+                assertThat(candidate.getText()).isEqualTo("saved joke"));
+        verify(inventory).findBySourceEventId("evt-123");
+        verifyNoInteractions(source, roastService);
+    }
+
+    @Test
+    void persistedEventInAnotherLanguageReturnsConflictWithoutFetchingOrGenerating() {
+        FinancialEventSource source = mock(FinancialEventSource.class);
+        FinancialEventRoastService roastService = mock(FinancialEventRoastService.class);
+        ContentInventoryService inventory = mock(ContentInventoryService.class);
+        ContentItemResponse existing = new ContentItemResponse("content-1", "evt-123", "FINSTREAM", "BTCUSDT",
+                "RAPID_DROP", null, null, .8, "zh-CN", ContentStatus.GENERATED, null, null,
+                List.of(new ContentCandidateResponse("candidate-1", "中文候选", "dry", "low", null)));
+        when(inventory.findBySourceEventId("evt-123")).thenReturn(java.util.Optional.of(existing));
+        FinStreamRoastServiceImpl service = new FinStreamRoastServiceImpl(source, roastService,
+                new GenerationOptionsResolver(new RoastLensProperties()), inventory);
+
+        assertThatThrownBy(() -> service.generateFromFinStream("evt-123", "en-US"))
+                .isInstanceOf(ContentLanguageConflictException.class)
+                .hasMessage("Event evt-123 was already processed in zh-CN and cannot be returned as en-US");
+        verifyNoInteractions(source, roastService);
     }
 }

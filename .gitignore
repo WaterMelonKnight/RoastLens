@@ -1,4 +1,6 @@
-.env
 target/
+.env
 .idea/
 *.iml
+data/
+*.log
