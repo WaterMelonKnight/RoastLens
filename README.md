@@ -176,7 +176,7 @@ Scores at or above `ROASTLENS_ROASTABILITY_THRESHOLD` generate candidates; lower
 
 The processing path is now `FinStream -> FinancialEvent -> processed-event check -> request novelty/content-worthiness -> candidate generation -> Content Inventory`. `sourceEventId` is a unique business key. A persisted event is returned by the batch as an execution-time `SKIP` with reason `Already processed`; its original inventory status is not changed and neither the evaluator nor LLM is called. Same-request weak novelty duplicates remain unpersisted.
 
-Generated candidates and content-worthiness `SKIPPED` outcomes are retained. Generation errors are retained as `FAILED`, and are not automatically retried; retry policy belongs in a later PR. The single-event endpoint returns retained candidates for an existing `GENERATED` item, or an empty candidate list for a retained `SKIPPED`/`FAILED` item, without calling the LLM again.
+Generated candidates and content-worthiness `SKIPPED` outcomes are retained. Generation errors are retained as `FAILED`, and are not automatically retried; retry policy belongs in a later PR. The single-event endpoint returns retained candidates for an existing `GENERATED` item, or an empty candidate list for a retained `SKIPPED`/`FAILED` item, without calling the LLM again. If a caller requests a language different from the retained item's language, the endpoint returns `409 Conflict` rather than returning candidates in the wrong language. Multilingual variants may be supported in a later PR.
 
 ### Content Inventory
 
@@ -188,7 +188,7 @@ curl "http://localhost:8080/api/v1/content/{contentItemId}"
 curl "http://localhost:8080/api/v1/content/by-event/{sourceEventId}"
 ```
 
-The local default is file-backed H2 at `./data/roastlens`, so content survives application restarts and requires no Docker database. Hibernate schema update is used for this MVP; the entities and standard JDBC configuration remain suitable for a future PostgreSQL deployment. Set the datasource environment variables to use another database. The inventory contains `ContentItem` source metadata, score, language, `GENERATED`/`SKIPPED`/`FAILED` status, timestamps, and atomically persisted `ContentCandidate` rows.
+The current default and supported runtime database is file-backed H2 at `./data/roastlens`, so content survives application restarts and requires no Docker database. Hibernate schema update is used for this MVP. The schema and entity design are intended to remain PostgreSQL-compatible, but the PostgreSQL JDBC driver and deployment support are not included yet and will be added later. The inventory contains `ContentItem` source metadata, score, language, `GENERATED`/`SKIPPED`/`FAILED` status, timestamps, and atomically persisted `ContentCandidate` rows.
 
 There is still no scheduler, polling, automatic publishing, human-review workflow, image generation, or video generation.
 

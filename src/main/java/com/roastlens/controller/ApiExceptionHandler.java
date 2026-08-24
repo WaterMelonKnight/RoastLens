@@ -1,5 +1,6 @@
 package com.roastlens.controller;
 
+import com.roastlens.content.ContentLanguageConflictException;
 import com.roastlens.connector.finstream.FinStreamClientException;
 import com.roastlens.connector.finstream.FinStreamEventNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,11 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    @ExceptionHandler(ContentLanguageConflictException.class)
+    public ResponseEntity<Map<String, String>> handleContentLanguageConflict(ContentLanguageConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error(ex.getMessage()));
+    }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleBadRequest(IllegalArgumentException ex) {

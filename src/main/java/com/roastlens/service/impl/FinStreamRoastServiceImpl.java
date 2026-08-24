@@ -7,6 +7,7 @@ import com.roastlens.generation.GenerationOptions;
 import com.roastlens.model.dto.RoastResponse;
 import com.roastlens.model.dto.ContentItemResponse;
 import com.roastlens.content.ContentStatus;
+import com.roastlens.content.ContentLanguageConflictException;
 import com.roastlens.model.dto.RoastCandidate;
 import com.roastlens.service.ContentInventoryService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +46,13 @@ public class FinStreamRoastServiceImpl implements FinStreamRoastService {
         GenerationOptions options = optionsResolver.resolve(language);
         if (inventory != null) {
             var existing = inventory.findBySourceEventId(eventId);
-            if (existing.isPresent()) return persistedResponse(existing.get());
+            if (existing.isPresent()) {
+                ContentItemResponse item = existing.get();
+                if (!options.language().equals(item.language())) {
+                    throw new ContentLanguageConflictException(eventId, item.language(), options.language());
+                }
+                return persistedResponse(item);
+            }
         }
         FinancialEventInput event = eventSource.getEvent(eventId);
         try {
