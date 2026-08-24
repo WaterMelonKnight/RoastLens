@@ -137,6 +137,9 @@ class FinancialEventRoastServiceImplTest {
         verify(llmClient).generate(captor.capture());
         assertThat(captor.getValue().getOutputInstruction())
                 .contains("Simplified Chinese (zh-CN)", "natural Simplified Chinese", "BTCUSDT",
+                        "social-media-ready", "15-45 Chinese", "punchline", "contrast or reversal",
+                        "financial-report", "这表明", "not five paraphrases", "uncertainty",
+                        "dry: 冷淡、克制", "sarcastic: 轻微阴阳怪气", "deadpan: 像播报客观事实",
                         "JSON property names", "style values", "riskLevel values", "Do not translate machine-facing");
         assertThat(captor.getValue().getSystemPrompt())
                 .contains("Do not invent market figures or causes", "Do not invent news", "whale activity",
@@ -149,7 +152,9 @@ class FinancialEventRoastServiceImplTest {
         service.generateCandidates(event("RAPID_PUMP", Map.of()), new GenerationOptions("en-US"));
         ArgumentCaptor<LlmRequest> captor = ArgumentCaptor.forClass(LlmRequest.class);
         verify(llmClient).generate(captor.capture());
-        assertThat(captor.getValue().getOutputInstruction()).contains("natural American English (en-US)");
+        assertThat(captor.getValue().getOutputInstruction())
+                .contains("natural American English (en-US)")
+                .doesNotContain("15-45 Chinese", "这表明", "家人们", "dry: 冷淡、克制");
     }
 
     private void givenOutput(String output) {
