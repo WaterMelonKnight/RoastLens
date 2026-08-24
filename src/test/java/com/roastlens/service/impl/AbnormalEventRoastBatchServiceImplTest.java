@@ -15,6 +15,8 @@ import com.roastlens.roastability.RoastabilityEvaluator;
 import com.roastlens.roastability.RoastabilityProperties;
 import com.roastlens.roastability.RoastabilityResult;
 import com.roastlens.service.FinancialEventRoastService;
+import com.roastlens.service.ContentInventoryService;
+import com.roastlens.content.ContentStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
@@ -203,6 +205,35 @@ class AbnormalEventRoastBatchServiceImplTest {
         assertThat(result.skipped()).isEqualTo(2);
         verify(evaluator, times(2)).evaluate(any());
         verify(roastService, times(2)).generateCandidates(any(), any(GenerationOptions.class));
+    }
+
+    @Test void previouslyProcessedEventSkipsEvaluatorAndLlm() {
+        ContentInventoryService inventory = mock(ContentInventoryService.class);
+        FinancialEventInput event = event("existing");
+        when(source.getAbnormalEvents()).thenReturn(List.of(event));
+        when(inventory.isProcessed("existing")).thenReturn(true);
+        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties,
+                optionsResolver(), new MeaningfulEscalationEventNoveltyFilter(), inventory);
+
+        RoastBatchResponse result = service.processAbnormalEvents();
+
+        assertThat(result.skipped()).isOne();
+        assertThat(result.results().get(0).reason()).isEqualTo("Already processed");
+        verifyNoInteractions(evaluator, roastService);
+    }
+
+    @Test void contentWorthinessSkipIsPersistedWithoutLlm() {
+        ContentInventoryService inventory = mock(ContentInventoryService.class);
+        FinancialEventInput event = event("skip");
+        when(source.getAbnormalEvents()).thenReturn(List.of(event));
+        when(evaluator.evaluate(event)).thenReturn(skip());
+        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties,
+                optionsResolver(), new MeaningfulEscalationEventNoveltyFilter(), inventory);
+
+        service.processAbnormalEvents();
+
+        verify(inventory).record(event, .2, "zh-CN", ContentStatus.SKIPPED, List.of());
+        verifyNoInteractions(roastService);
     }
 
     private GenerationOptionsResolver optionsResolver() { return new GenerationOptionsResolver(new RoastLensProperties()); }

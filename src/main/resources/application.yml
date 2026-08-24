@@ -4,6 +4,15 @@ server:
 spring:
   application:
     name: roastlens
+  datasource:
+    url: ${ROASTLENS_DATASOURCE_URL:jdbc:h2:file:./data/roastlens;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE}
+    username: ${ROASTLENS_DATASOURCE_USERNAME:sa}
+    password: ${ROASTLENS_DATASOURCE_PASSWORD:}
+    driver-class-name: ${ROASTLENS_DATASOURCE_DRIVER:org.h2.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
 
 logging:
   level:

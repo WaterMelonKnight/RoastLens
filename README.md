@@ -33,6 +33,7 @@ It is built for local-first MVP speed, clear architecture, and future growth int
 - Spring Boot 3.x
 - Maven
 - WebClient (reactive HTTP client)
+- Spring Data JPA with file-backed H2 for zero-setup local persistence
 - YAML-based configuration
 - Static HTML/CSS/JS frontend
 - Docker + docker-compose
@@ -100,6 +101,10 @@ Open `http://localhost:8080`.
 | `ROASTLENS_FINSTREAM_TIMEOUT_SECONDS` | no | `5` | FinStream request timeout |
 | `ROASTLENS_ROASTABILITY_THRESHOLD` | no | `0.6` | Inclusive score threshold for generating candidates |
 | `ROASTLENS_ROAST_MAX_BATCH_SIZE` | no | `20` | Maximum unique abnormal events processed per manual request |
+| `ROASTLENS_DATASOURCE_URL` | no | `jdbc:h2:file:./data/roastlens;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE` | JDBC URL for content inventory persistence |
+| `ROASTLENS_DATASOURCE_USERNAME` | no | `sa` | Database username |
+| `ROASTLENS_DATASOURCE_PASSWORD` | no | empty | Database password |
+| `ROASTLENS_DATASOURCE_DRIVER` | no | `org.h2.Driver` | JDBC driver class (override with the URL for PostgreSQL) |
 
 ### Provider switch examples (OpenAI-compatible)
 
@@ -144,7 +149,7 @@ curl -X POST \
   "http://localhost:8080/api/v1/roasts/from-finstream/{eventId}?lang=zh-CN"
 ```
 
-This integration is **manual trigger only** and **REST connector only**. It does not discover FinStream automatically. Polling, scheduling, persistence, permanent processed-event deduplication, automatic publishing, and MCP integration are not supported.
+This integration is **manual trigger only** and **REST connector only**. It does not discover FinStream automatically. Polling, scheduling, automatic publishing, and MCP integration are not supported.
 
 The call fetches `GET /api/v1/events/{eventId}`, maps the response at the connector boundary, and delegates candidate generation to the existing `FinancialEventRoastService`. FinStream 404 responses become API 404 responses; unavailable, timeout, upstream 5xx, empty, malformed, or incompatible responses become stable 502 responses without exposing upstream response bodies.
 
@@ -169,7 +174,23 @@ The batch performs, in order: (1) event-ID dedupe, (2) same `symbol|eventType` s
 
 Scores at or above `ROASTLENS_ROASTABILITY_THRESHOLD` generate candidates; lower scores are returned as `SKIP` without invoking the LLM. A candidate-generation failure is returned as an item-level `ERROR` and later items continue, while a failure fetching the abnormal-event list remains a request-level 502.
 
-Duplicate suppression is deliberately scoped to one request. This endpoint has no cross-request cooldown, persistent processed tracking, scheduler, database, content inventory, or publishing.
+The processing path is now `FinStream -> FinancialEvent -> processed-event check -> request novelty/content-worthiness -> candidate generation -> Content Inventory`. `sourceEventId` is a unique business key. A persisted event is returned by the batch as an execution-time `SKIP` with reason `Already processed`; its original inventory status is not changed and neither the evaluator nor LLM is called. Same-request weak novelty duplicates remain unpersisted.
+
+Generated candidates and content-worthiness `SKIPPED` outcomes are retained. Generation errors are retained as `FAILED`, and are not automatically retried; retry policy belongs in a later PR. The single-event endpoint returns retained candidates for an existing `GENERATED` item, or an empty candidate list for a retained `SKIPPED`/`FAILED` item, without calling the LLM again.
+
+### Content Inventory
+
+Read-only inventory endpoints are available:
+
+```bash
+curl "http://localhost:8080/api/v1/content?limit=20"
+curl "http://localhost:8080/api/v1/content/{contentItemId}"
+curl "http://localhost:8080/api/v1/content/by-event/{sourceEventId}"
+```
+
+The local default is file-backed H2 at `./data/roastlens`, so content survives application restarts and requires no Docker database. Hibernate schema update is used for this MVP; the entities and standard JDBC configuration remain suitable for a future PostgreSQL deployment. Set the datasource environment variables to use another database. The inventory contains `ContentItem` source metadata, score, language, `GENERATED`/`SKIPPED`/`FAILED` status, timestamps, and atomically persisted `ContentCandidate` rows.
+
+There is still no scheduler, polling, automatic publishing, human-review workflow, image generation, or video generation.
 
 ### POST `/api/v1/roasts`
 
