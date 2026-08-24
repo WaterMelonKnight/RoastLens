@@ -9,6 +9,7 @@ import com.roastlens.financial.FinancialEventSource;
 import com.roastlens.model.dto.RoastCandidate;
 import com.roastlens.model.dto.RoastBatchResponse;
 import com.roastlens.model.dto.RoastResponse;
+import com.roastlens.novelty.MeaningfulEscalationEventNoveltyFilter;
 import com.roastlens.roastability.RoastabilityDecision;
 import com.roastlens.roastability.RoastabilityEvaluator;
 import com.roastlens.roastability.RoastabilityProperties;
@@ -36,7 +37,8 @@ class AbnormalEventRoastBatchServiceImplTest {
     @BeforeEach void setUp() {
         MockitoAnnotations.openMocks(this);
         properties = new RoastabilityProperties();
-        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties, optionsResolver());
+        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties, optionsResolver(),
+                new MeaningfulEscalationEventNoveltyFilter());
     }
 
     @Test void allRoast() {
@@ -115,12 +117,69 @@ class AbnormalEventRoastBatchServiceImplTest {
 
     @Test void maxBatchSizePreservesUpstreamOrder() {
         properties.setMaxBatchSize(2);
-        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties, optionsResolver());
+        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties, optionsResolver(),
+                new MeaningfulEscalationEventNoveltyFilter());
         when(source.getAbnormalEvents()).thenReturn(List.of(event("1"), event("2"), event("3")));
         roastAll();
         RoastBatchResponse result = service.processAbnormalEvents();
         assertThat(result.results()).extracting(item -> item.eventId()).containsExactly("1", "2");
         verify(evaluator, times(2)).evaluate(any());
+    }
+
+    @Test void realisticWeakVolumeDuplicatesCallLlmOnce() {
+        List<FinancialEventInput> events = List.of(
+                volumeEvent("1", "BTCUSDT", 3.001, 1.000),
+                volumeEvent("2", "BTCUSDT", 3.026, 1.008),
+                volumeEvent("3", "BTCUSDT", 3.072, 1.024),
+                volumeEvent("4", "BTCUSDT", 3.070, 1.020));
+        when(source.getAbnormalEvents()).thenReturn(events);
+        roastAll();
+
+        RoastBatchResponse result = service.processAbnormalEvents();
+
+        assertThat(result.results()).extracting(item -> item.eventId()).containsExactly("1");
+        verify(roastService, times(1)).generateCandidates(any(), any(GenerationOptions.class));
+        verify(evaluator, times(1)).evaluate(any());
+    }
+
+    @Test void meaningfulEscalationCallsLlmAgainAndPreservesLanguage() {
+        FinancialEventInput first = volumeEvent("1", "BTCUSDT", 3.0, 1.0);
+        FinancialEventInput escalation = volumeEvent("4", "BTCUSDT", 6.2, 2.06);
+        when(source.getAbnormalEvents()).thenReturn(List.of(first,
+                volumeEvent("2", "BTCUSDT", 3.02, 1.01),
+                volumeEvent("3", "BTCUSDT", 3.07, 1.02), escalation));
+        roastAll();
+
+        RoastBatchResponse result = service.processAbnormalEvents("en-US");
+
+        assertThat(result.results()).extracting(item -> item.eventId()).containsExactly("1", "4");
+        verify(roastService, times(2)).generateCandidates(any(), eq(new GenerationOptions("en-US")));
+    }
+
+    @Test void differentSymbolsAndEventTypesAreIndependent() {
+        FinancialEventInput btcVolume = volumeEvent("v1", "BTCUSDT", 3, 1);
+        FinancialEventInput ethVolume = volumeEvent("v2", "ETHUSDT", 3, 1);
+        FinancialEventInput solVolume = volumeEvent("v3", "SOLUSDT", 3, 1);
+        FinancialEventInput btcDrop = event("drop");
+        btcDrop.setSymbol("BTCUSDT");
+        when(source.getAbnormalEvents()).thenReturn(List.of(btcVolume, ethVolume, solVolume, btcDrop));
+        roastAll();
+
+        assertThat(service.processAbnormalEvents().processed()).isEqualTo(4);
+        verify(roastService, times(4)).generateCandidates(any(), any(GenerationOptions.class));
+    }
+
+    @Test void duplicatesAreSuppressedBeforeMaxBatchSize() {
+        properties.setMaxBatchSize(2);
+        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties, optionsResolver(),
+                new MeaningfulEscalationEventNoveltyFilter());
+        when(source.getAbnormalEvents()).thenReturn(List.of(
+                volumeEvent("1", "BTCUSDT", 3, 1), volumeEvent("2", "BTCUSDT", 3.01, 1.01),
+                volumeEvent("3", "BTCUSDT", 3.02, 1.02), volumeEvent("4", "ETHUSDT", 3, 1)));
+        roastAll();
+
+        assertThat(service.processAbnormalEvents().results()).extracting(item -> item.eventId())
+                .containsExactly("1", "4");
     }
 
     private GenerationOptionsResolver optionsResolver() { return new GenerationOptionsResolver(new RoastLensProperties()); }
@@ -134,7 +193,18 @@ class AbnormalEventRoastBatchServiceImplTest {
     private RoastResponse response(String id) { return new RoastResponse(id, List.of(new RoastCandidate("joke", "dry", "low"))); }
     private FinancialEventInput event(String id) {
         FinancialEventInput event = new FinancialEventInput();
-        event.setId(id); event.setSymbol("BTCUSDT"); event.setEventType("RAPID_DROP");
+        event.setId(id); event.setSymbol("2".equals(id) ? "ETHUSDT" : "3".equals(id) ? "SOLUSDT" : "BTCUSDT");
+        event.setEventType("RAPID_DROP");
+        return event;
+    }
+
+    private FinancialEventInput volumeEvent(String id, String symbol, double volumeRatio, double anomalyScore) {
+        FinancialEventInput event = event(id);
+        event.setSymbol(symbol);
+        event.setEventType("ABNORMAL_VOLUME");
+        event.setSeverity("MEDIUM");
+        event.setAnomalyScore(anomalyScore);
+        event.setMetrics(java.util.Map.of("volumeRatio", volumeRatio));
         return event;
     }
 }

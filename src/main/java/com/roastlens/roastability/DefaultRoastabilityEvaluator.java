@@ -24,11 +24,14 @@ public class DefaultRoastabilityEvaluator implements RoastabilityEvaluator {
         boolean known = event.getEventType() != null && KNOWN_TYPES.contains(event.getEventType().toUpperCase(Locale.ROOT));
         Double return5m = metric(event.getMetrics(), "return5m");
         Double volumeRatio = metric(event.getMetrics(), "volumeRatio");
-        double returnContribution = return5m == null ? 0 : 0.15 * clamp(Math.abs(return5m) / 15.0);
-        double volumeContribution = volumeRatio == null ? 0 : 0.15 * clamp((volumeRatio - 1.0) / 9.0);
+        double returnContribution = return5m == null ? 0 : 0.10 * clamp(Math.abs(return5m) / 10.0);
+        double volumeContribution = volumeRatio == null ? 0 : 0.10 * clamp((volumeRatio - 1.0) / 9.0);
+        boolean combined = return5m != null && Math.abs(return5m) >= 3.0
+                && volumeRatio != null && volumeRatio >= 2.0;
+        boolean major = "BTCUSDT".equalsIgnoreCase(event.getSymbol()) || "ETHUSDT".equalsIgnoreCase(event.getSymbol());
 
-        double score = clamp(0.05 + severity * 0.35 + anomaly * 0.35 + (known ? 0.03 : 0)
-                + returnContribution + volumeContribution);
+        double score = clamp(0.25 + severity * 0.20 + anomaly * 0.15 + (known ? 0.05 : 0)
+                + (major ? 0.05 : 0) + returnContribution + volumeContribution + (combined ? 0.15 : 0));
         RoastabilityDecision decision = score >= threshold ? RoastabilityDecision.ROAST : RoastabilityDecision.SKIP;
         return new RoastabilityResult(score, decision,
                 reason(decision, severity, anomaly, returnContribution, volumeContribution));
@@ -36,14 +39,12 @@ public class DefaultRoastabilityEvaluator implements RoastabilityEvaluator {
 
     private String reason(RoastabilityDecision decision, double severity, double anomaly,
                           double returnContribution, double volumeContribution) {
-        if (severity >= 0.8 && anomaly >= 0.45) return "High severity with moderate anomaly signal";
-        if (returnContribution >= 0.08 && volumeContribution >= 0.08) return "Strong price and volume anomaly";
-        if (volumeContribution >= 0.03) return "Elevated volume with otherwise modest anomaly strength";
-        if (returnContribution >= 0.04) return "Moderate short-term price move";
-        if (severity >= 0.8) return "High severity";
-        if (anomaly >= 0.75) return "Strong anomaly signal";
-        if (severity <= 0.25 && anomaly <= 0.25) return "Low severity and weak anomaly signal";
-        return decision == RoastabilityDecision.ROAST ? "Moderate anomaly strength" : "Weak anomaly signal";
+        if (returnContribution >= 0.03 && volumeContribution >= 0.01) return "Strong combined price and volume move";
+        if (severity >= 0.8 && anomaly >= 0.45) return "High-severity event with strong content value";
+        if (volumeContribution >= 0.02) return "Fresh abnormal-volume event with moderate content value";
+        if (returnContribution >= 0.03) return "Meaningful short-term price move for content";
+        if (severity >= 0.8) return "High-severity event with moderate content value";
+        return decision == RoastabilityDecision.ROAST ? "Event has sufficient content value" : "Limited content value for generation";
     }
 
     private double severity(Object value) {

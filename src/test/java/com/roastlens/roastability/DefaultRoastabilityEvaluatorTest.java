@@ -23,17 +23,17 @@ class DefaultRoastabilityEvaluatorTest {
         assertThat(huge).isGreaterThan(atThree);
     }
 
-    @Test void severityAndAnomalyArePrimarySignals() {
+    @Test void severityAndAnomalyHaveBoundedContentValueContributions() {
         assertThat(score(event("OTHER", "HIGH", 0.0, null)).score()
-                - score(event("OTHER", "LOW", 0.0, null)).score()).isGreaterThan(.25);
+                - score(event("OTHER", "LOW", 0.0, null)).score()).isCloseTo(.16, within(.000001));
         assertThat(score(event("OTHER", null, 4.0, null)).score()
-                - score(event("OTHER", null, 1.0, null)).score()).isGreaterThan(.25);
+                - score(event("OTHER", null, 1.0, null)).score()).isCloseTo(.1125, within(.000001));
     }
 
     @Test void knownTypeAddsOnlySmallBonus() {
         double known = score(event("RAPID_PUMP", .5, 2.0, null)).score();
         double unknown = score(event("OTHER", .5, 2.0, null)).score();
-        assertThat(known - unknown).isCloseTo(.03, within(.000001));
+        assertThat(known - unknown).isCloseTo(.05, within(.000001));
     }
 
     @Test void unknownTypeCanRoastWithStrongSignals() {
@@ -70,8 +70,18 @@ class DefaultRoastabilityEvaluatorTest {
     @Test void realisticBtcAbnormalVolumeRegression() {
         RoastabilityResult result = score(event("ABNORMAL_VOLUME", "HIGH", 2.02,
                 Map.of("volumeRatio", new BigDecimal("3.03"))));
-        assertThat(result.score()).isCloseTo(0.6405833333, within(.000001)).isLessThan(1.0);
-        assertThat(result.reason()).isNotBlank();
+        assertThat(result.score()).isCloseTo(0.6483055556, within(.000001)).isLessThan(1.0);
+        assertThat(result.reason()).contains("content value");
+    }
+
+    @Test void combinedPriceAndVolumeMoveHasHigherContentWorthiness() {
+        RoastabilityResult volumeOnly = score(event("ABNORMAL_VOLUME", "MEDIUM", 1.0,
+                Map.of("volumeRatio", 3.02)));
+        RoastabilityResult combined = score(event("RAPID_DROP", "MEDIUM", 1.0,
+                Map.of("return5m", -6.0, "volumeRatio", 4.0)));
+        assertThat(combined.score()).isGreaterThan(volumeOnly.score());
+        assertThat(combined.decision()).isEqualTo(RoastabilityDecision.ROAST);
+        assertThat(combined.reason()).isEqualTo("Strong combined price and volume move");
     }
 
     private RoastabilityResult score(FinancialEventInput event) { return evaluator.evaluate(event); }

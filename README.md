@@ -161,20 +161,15 @@ The optional request language overrides `ROASTLENS_DEFAULT_LANGUAGE`. The defaul
 supported. Only candidate `text` is localized: JSON field names, `style`, `riskLevel`, symbols, and `eventType` remain
 machine-readable values. Unsupported locales return HTTP 400 rather than silently falling back.
 
-The flow is `FinStream abnormal events -> deterministic roastability evaluation -> selected events -> RoastCandidate`. RoastLens consumes FinStream's current `GET /api/v1/events/abnormal` contract, which is a JSON array of FinancialEvent objects in FinStream's own order. Only the fields needed by RoastLens are mapped; extra owner fields such as `evidence` are ignored.
+FinStream detects abnormal market events. RoastLens does not repeat that detector decision: its existing “roastability” name means **content worthiness and content novelty**—whether an already-abnormal event is worth turning into content. RoastLens consumes FinStream's current `GET /api/v1/events/abnormal` contract in FinStream order and maps only the fields it needs; extra owner fields such as `evidence` are ignored.
 
-The deterministic score is clamped to `0.0..1.0`: `0.05` base, up to `0.35` each for severity and normalized anomaly
-strength, `0.03` for a known event type, and smooth capped bonuses up to `0.15` each for absolute five-minute return and
-volume ratio. Return reaches its cap at 15%; volume has no bonus at 1x and reaches its cap at 10x, so crossing 3x no
-longer creates a binary jump. FinStream defines `anomalyScore` as observed magnitude divided by that rule's configured
-trigger (1.0 means the trigger; values are unbounded), so RoastLens linearly normalizes 0..4 to 0..1 before weighting it.
-FinStream currently emits string severity (`MEDIUM` below anomaly score 2, otherwise `HIGH`); RoastLens also safely
-accepts the pre-existing numeric and `LOW`/`MEDIUM`/`HIGH`/`CRITICAL` compatibility forms. Unknown event types are
-evaluated normally, and missing or malformed optional metrics contribute nothing.
+The deterministic content-worthiness score is clamped to `0.0..1.0`: `0.25` base; at most `0.20` for severity and `0.15` for normalized anomaly strength; `0.05` each for a known event type and the small BTC/ETH relevance signal; smooth capped contributions up to `0.10` each for absolute five-minute return and volume ratio; and `0.15` when a meaningful price move and elevated volume occur together. FinStream's unbounded `anomalyScore` is normalized over `0..4`. Unknown types remain eligible, while missing or malformed optional metrics contribute nothing. Reasons describe content value (for example, a strong combined move or limited content value), not a second market-anomaly verdict.
 
-Scores at or above `ROASTLENS_ROASTABILITY_THRESHOLD` generate candidates; lower scores are returned as `SKIP` without invoking the LLM. A candidate-generation failure is returned as an item-level `ERROR` and later items continue, while a failure fetching the abnormal-event list remains a request-level 502. Within one request, duplicate event IDs keep their first occurrence. At most `ROASTLENS_ROAST_MAX_BATCH_SIZE` unique events (default 20) are processed, preserving FinStream order; remaining events are truncated.
+The batch performs, in order: (1) event-ID dedupe, (2) same `symbol|eventType` suppression, (3) escalation detection, (4) the bounded content-worthiness evaluation, and (5) LLM generation only for selected events. The first duplicate-key occurrence is selected. A later occurrence is selected as a new representative only if anomaly score or volume ratio rises by at least 50%, severity rises from medium to high/critical, or—only for rapid pump/drop events—the absolute five-minute return rises by at least 50%. Small repeats are suppressed as “Duplicate event without meaningful escalation.” This filtering preserves upstream order and happens before `ROASTLENS_ROAST_MAX_BATCH_SIZE` (default 20), so duplicates do not consume useful batch slots.
 
-This endpoint does not add a scheduler, persistence, cross-request/permanent deduplication, content inventory, or publishing.
+Scores at or above `ROASTLENS_ROASTABILITY_THRESHOLD` generate candidates; lower scores are returned as `SKIP` without invoking the LLM. A candidate-generation failure is returned as an item-level `ERROR` and later items continue, while a failure fetching the abnormal-event list remains a request-level 502.
+
+Duplicate suppression is deliberately scoped to one request. This endpoint has no cross-request cooldown, persistent processed tracking, scheduler, database, content inventory, or publishing.
 
 ### POST `/api/v1/roasts`
 
