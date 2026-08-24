@@ -175,6 +175,11 @@ Duplicate suppression is deliberately scoped to one request. This endpoint has n
 
 Submit a standardized `FinancialEvent` manually and receive 3–5 content candidates. This API does not persist results, schedule work, publish content, or change the manual analyze Web UI.
 
+For `zh-CN`, generation is optimized for short-form social financial commentary: compact setup-and-punchline
+writing, contrast, deadpan or lightly sarcastic humor, and natural Chinese phrasing rather than financial-report prose.
+The humor remains grounded only in supplied event facts; an unknown cause stays unknown and may be the subject of the
+joke, but is never invented. Each `RoastCandidate` is reviewable draft content only—not automatically published content.
+
 Request:
 
 ```json
