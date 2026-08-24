@@ -2,6 +2,9 @@ package com.roastlens.service.impl;
 
 import com.roastlens.connector.finstream.FinStreamClientException;
 import com.roastlens.financial.FinancialEventInput;
+import com.roastlens.config.RoastLensProperties;
+import com.roastlens.generation.GenerationOptions;
+import com.roastlens.generation.GenerationOptionsResolver;
 import com.roastlens.financial.FinancialEventSource;
 import com.roastlens.model.dto.RoastCandidate;
 import com.roastlens.model.dto.RoastBatchResponse;
@@ -33,7 +36,7 @@ class AbnormalEventRoastBatchServiceImplTest {
     @BeforeEach void setUp() {
         MockitoAnnotations.openMocks(this);
         properties = new RoastabilityProperties();
-        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties);
+        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties, optionsResolver());
     }
 
     @Test void allRoast() {
@@ -60,7 +63,7 @@ class AbnormalEventRoastBatchServiceImplTest {
         when(source.getAbnormalEvents()).thenReturn(List.of(one, two));
         when(evaluator.evaluate(one)).thenReturn(roast());
         when(evaluator.evaluate(two)).thenReturn(skip());
-        when(roastService.generateCandidates(one)).thenReturn(response("1"));
+        when(roastService.generateCandidates(eq(one), any(GenerationOptions.class))).thenReturn(response("1"));
         RoastBatchResponse result = service.processAbnormalEvents();
         assertThat(result.processed()).isEqualTo(2);
         assertThat(result.generated()).isOne();
@@ -74,8 +77,8 @@ class AbnormalEventRoastBatchServiceImplTest {
         FinancialEventInput one = event("1"), two = event("2");
         when(source.getAbnormalEvents()).thenReturn(List.of(one, two));
         when(evaluator.evaluate(any())).thenReturn(roast());
-        when(roastService.generateCandidates(one)).thenThrow(new IllegalStateException("bad LLM JSON"));
-        when(roastService.generateCandidates(two)).thenReturn(response("2"));
+        when(roastService.generateCandidates(eq(one), any(GenerationOptions.class))).thenThrow(new IllegalStateException("bad LLM JSON"));
+        when(roastService.generateCandidates(eq(two), any(GenerationOptions.class))).thenReturn(response("2"));
         RoastBatchResponse result = service.processAbnormalEvents();
         assertThat(result.generated()).isOne();
         assertThat(result.errors()).isOne();
@@ -112,7 +115,7 @@ class AbnormalEventRoastBatchServiceImplTest {
 
     @Test void maxBatchSizePreservesUpstreamOrder() {
         properties.setMaxBatchSize(2);
-        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties);
+        service = new AbnormalEventRoastBatchServiceImpl(source, evaluator, roastService, properties, optionsResolver());
         when(source.getAbnormalEvents()).thenReturn(List.of(event("1"), event("2"), event("3")));
         roastAll();
         RoastBatchResponse result = service.processAbnormalEvents();
@@ -120,9 +123,11 @@ class AbnormalEventRoastBatchServiceImplTest {
         verify(evaluator, times(2)).evaluate(any());
     }
 
+    private GenerationOptionsResolver optionsResolver() { return new GenerationOptionsResolver(new RoastLensProperties()); }
+
     private void roastAll() {
         when(evaluator.evaluate(any())).thenReturn(roast());
-        when(roastService.generateCandidates(any())).thenAnswer(inv -> response(inv.<FinancialEventInput>getArgument(0).getId()));
+        when(roastService.generateCandidates(any(), any(GenerationOptions.class))).thenAnswer(inv -> response(inv.<FinancialEventInput>getArgument(0).getId()));
     }
     private RoastabilityResult roast() { return new RoastabilityResult(.8, RoastabilityDecision.ROAST, "strong"); }
     private RoastabilityResult skip() { return new RoastabilityResult(.2, RoastabilityDecision.SKIP, "weak"); }

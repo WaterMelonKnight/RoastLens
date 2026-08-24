@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.roastlens.financial.FinancialEventInput;
+import com.roastlens.config.RoastLensProperties;
+import com.roastlens.generation.GenerationOptions;
+import com.roastlens.generation.GenerationOptionsResolver;
 import com.roastlens.llm.LlmClient;
 import com.roastlens.llm.LlmRequest;
 import com.roastlens.llm.LlmResponse;
@@ -34,7 +37,8 @@ class FinancialEventRoastServiceImplTest {
         llmClient = mock(LlmClient.class);
         ObjectMapper mapper = JsonMapper.builder().addModule(new JavaTimeModule()).build();
         FinancialEventPromptBuilder promptBuilder = new FinancialEventPromptBuilder(new SafetyPolicy(), mapper);
-        service = new FinancialEventRoastServiceImpl(promptBuilder, llmClient, mapper);
+        service = new FinancialEventRoastServiceImpl(promptBuilder, llmClient, mapper,
+                new GenerationOptionsResolver(new RoastLensProperties()));
     }
 
     @ParameterizedTest
@@ -122,6 +126,30 @@ class FinancialEventRoastServiceImplTest {
         givenOutput(jsonCandidates(3));
         RoastResponse response = service.generateCandidates(event("ABNORMAL_VOLUME", null));
         assertThat(response.getCandidates()).hasSize(3);
+    }
+
+    @Test
+    void zhCnPromptLocalizesOnlyHumanTextAndPreservesGrounding() {
+        givenOutput(jsonCandidates(3));
+        service.generateCandidates(event("ABNORMAL_VOLUME", Map.of("volumeRatio", 3.03)),
+                new GenerationOptions("zh-CN"));
+        ArgumentCaptor<LlmRequest> captor = ArgumentCaptor.forClass(LlmRequest.class);
+        verify(llmClient).generate(captor.capture());
+        assertThat(captor.getValue().getOutputInstruction())
+                .contains("Simplified Chinese (zh-CN)", "natural Simplified Chinese", "BTCUSDT",
+                        "JSON property names", "style values", "riskLevel values", "Do not translate machine-facing");
+        assertThat(captor.getValue().getSystemPrompt())
+                .contains("Do not invent market figures or causes", "Do not invent news", "whale activity",
+                        "social-media events", "explicitly preserve uncertainty", "unmistakably hypothetical");
+    }
+
+    @Test
+    void enUsPromptRequestsNaturalEnglish() {
+        givenOutput(jsonCandidates(3));
+        service.generateCandidates(event("RAPID_PUMP", Map.of()), new GenerationOptions("en-US"));
+        ArgumentCaptor<LlmRequest> captor = ArgumentCaptor.forClass(LlmRequest.class);
+        verify(llmClient).generate(captor.capture());
+        assertThat(captor.getValue().getOutputInstruction()).contains("natural American English (en-US)");
     }
 
     private void givenOutput(String output) {

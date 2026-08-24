@@ -2,6 +2,8 @@ package com.roastlens.service.impl;
 
 import com.roastlens.financial.FinancialEventInput;
 import com.roastlens.financial.FinancialEventSource;
+import com.roastlens.generation.GenerationOptions;
+import com.roastlens.generation.GenerationOptionsResolver;
 import com.roastlens.model.dto.RoastBatchItem;
 import com.roastlens.model.dto.RoastBatchResponse;
 import com.roastlens.model.dto.RoastResponse;
@@ -24,19 +26,28 @@ public class AbnormalEventRoastBatchServiceImpl implements AbnormalEventRoastBat
     private final RoastabilityEvaluator evaluator;
     private final FinancialEventRoastService roastService;
     private final int maxBatchSize;
+    private final GenerationOptionsResolver optionsResolver;
 
     public AbnormalEventRoastBatchServiceImpl(FinancialEventSource eventSource,
                                                RoastabilityEvaluator evaluator,
                                                FinancialEventRoastService roastService,
-                                               RoastabilityProperties properties) {
+                                               RoastabilityProperties properties,
+                                               GenerationOptionsResolver optionsResolver) {
         this.eventSource = eventSource;
         this.evaluator = evaluator;
         this.roastService = roastService;
         this.maxBatchSize = properties.getMaxBatchSize();
+        this.optionsResolver = optionsResolver;
     }
 
     @Override
     public RoastBatchResponse processAbnormalEvents() {
+        return processAbnormalEvents(null);
+    }
+
+    @Override
+    public RoastBatchResponse processAbnormalEvents(String language) {
+        GenerationOptions options = optionsResolver.resolve(language);
         List<FinancialEventInput> fetched = eventSource.getAbnormalEvents();
         Map<String, FinancialEventInput> unique = new LinkedHashMap<>();
         if (fetched != null) {
@@ -58,7 +69,7 @@ public class AbnormalEventRoastBatchServiceImpl implements AbnormalEventRoastBat
                 continue;
             }
             try {
-                RoastResponse response = roastService.generateCandidates(event);
+                RoastResponse response = roastService.generateCandidates(event, options);
                 generated++;
                 results.add(item(event, RoastabilityDecision.ROAST, evaluation, "", response.getCandidates()));
             } catch (RuntimeException ex) {

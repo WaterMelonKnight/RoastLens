@@ -27,7 +27,9 @@ public class SafetyPolicy {
                 "No leverage instruction, guaranteed return, or certain target price.",
                 "No exchange promotion, referral code, or trading-group solicitation.",
                 "No direct personal abuse.",
-                "Do not present an unprovided causal explanation or speculation as fact."
+                "Do not present an unprovided causal explanation or speculation as fact.",
+                "Do not invent causes, news, actors, motives, announcements, whale or bot activity, social-media events, institutional flows, or macro events.",
+                "When no cause is provided, preserve uncertainty; jokes must be unmistakably metaphorical, hypothetical, or rhetorical."
         );
     }
 }

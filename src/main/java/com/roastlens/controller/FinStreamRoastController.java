@@ -7,6 +7,7 @@ import com.roastlens.service.FinStreamRoastService;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -22,12 +23,12 @@ public class FinStreamRoastController {
     }
 
     @PostMapping("/abnormal")
-    public RoastBatchResponse createAbnormalBatch() {
-        return batchService.processAbnormalEvents();
+    public RoastBatchResponse createAbnormalBatch(@RequestParam(required = false) String lang) {
+        return batchService.processAbnormalEvents(lang);
     }
 
     @PostMapping("/{eventId}")
-    public RoastResponse create(@PathVariable String eventId) {
-        return roastService.generateFromFinStream(eventId);
+    public RoastResponse create(@PathVariable String eventId, @RequestParam(required = false) String lang) {
+        return roastService.generateFromFinStream(eventId, lang);
     }
 }

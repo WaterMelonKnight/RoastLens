@@ -3,6 +3,8 @@ package com.roastlens.service.impl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.roastlens.financial.FinancialEventInput;
+import com.roastlens.generation.GenerationOptions;
+import com.roastlens.generation.GenerationOptionsResolver;
 import com.roastlens.llm.LlmClient;
 import com.roastlens.llm.LlmRequest;
 import com.roastlens.llm.LlmResponse;
@@ -27,21 +29,29 @@ public class FinancialEventRoastServiceImpl implements FinancialEventRoastServic
     private final FinancialEventPromptBuilder promptBuilder;
     private final LlmClient llmClient;
     private final ObjectMapper objectMapper;
+    private final GenerationOptionsResolver optionsResolver;
 
     public FinancialEventRoastServiceImpl(FinancialEventPromptBuilder promptBuilder,
                                           LlmClient llmClient,
-                                          ObjectMapper objectMapper) {
+                                          ObjectMapper objectMapper,
+                                          GenerationOptionsResolver optionsResolver) {
         this.promptBuilder = promptBuilder;
         this.llmClient = llmClient;
         this.objectMapper = objectMapper;
+        this.optionsResolver = optionsResolver;
     }
 
     @Override
     public RoastResponse generateCandidates(FinancialEventInput event) {
+        return generateCandidates(event, optionsResolver.resolve(null));
+    }
+
+    @Override
+    public RoastResponse generateCandidates(FinancialEventInput event, GenerationOptions options) {
         LlmRequest request = new LlmRequest(
                 promptBuilder.buildSystemPrompt(),
                 promptBuilder.buildUserPrompt(event),
-                promptBuilder.buildOutputInstruction());
+                promptBuilder.buildOutputInstruction(options));
         LlmResponse response = llmClient.generate(request);
         String content = response == null ? null : response.getContent();
         return new RoastResponse(event.getId(), parseCandidates(content));
