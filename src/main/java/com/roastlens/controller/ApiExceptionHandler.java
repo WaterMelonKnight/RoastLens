@@ -1,6 +1,8 @@
 package com.roastlens.controller;
 
 import com.roastlens.content.ContentLanguageConflictException;
+import com.roastlens.content.ContentItemNotFoundException;
+import com.roastlens.content.ContentNotReviewableException;
 import com.roastlens.connector.finstream.FinStreamClientException;
 import com.roastlens.connector.finstream.FinStreamEventNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -17,6 +19,16 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(ContentLanguageConflictException.class)
     public ResponseEntity<Map<String, String>> handleContentLanguageConflict(ContentLanguageConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ContentItemNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleContentNotFound(ContentItemNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(ContentNotReviewableException.class)
+    public ResponseEntity<Map<String, String>> handleNotReviewable(ContentNotReviewableException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error(ex.getMessage()));
     }
 

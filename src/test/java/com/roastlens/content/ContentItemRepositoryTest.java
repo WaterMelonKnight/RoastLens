@@ -22,8 +22,17 @@ class ContentItemRepositoryTest {
         ContentItem found = repository.findBySourceEventId("evt-1").orElseThrow();
         assertThat(found.getId()).isEqualTo(saved.getId());
         assertThat(found.getStatus()).isEqualTo(ContentStatus.GENERATED);
+        assertThat(found.getReviewStatus()).isEqualTo(ContentReviewStatus.PENDING);
         assertThat(found.getCandidates()).singleElement().satisfies(candidate ->
                 assertThat(candidate.getText()).isEqualTo("joke"));
+    }
+
+    @Test
+    void nonGeneratedItemsHaveNoReviewStatus() {
+        ContentItem skipped = repository.saveAndFlush(item("skipped", ContentStatus.SKIPPED, List.of()));
+        ContentItem failed = repository.saveAndFlush(item("failed", ContentStatus.FAILED, List.of()));
+        assertThat(skipped.getReviewStatus()).isNull();
+        assertThat(failed.getReviewStatus()).isNull();
     }
 
     @Test

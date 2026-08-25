@@ -383,3 +383,21 @@ pre {
   .grid { grid-template-columns: 1fr; }
   .candidate-text { font-size: 17px; }
 }
+
+.status-pending { color: var(--warning); border-color: #71572c; }
+.status-approved { color: var(--success); border-color: #28684f; }
+.status-rejected { color: var(--danger); border-color: #753b3b; }
+.review-section, .approved-section, .not-reviewable {
+  margin: 18px 0 24px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #12161d;
+}
+.review-section h3, .approved-section h3 { margin-top: 0; }
+.approved-text { white-space: pre-wrap; font-size: 19px; line-height: 1.55; }
+.review-meta, .review-message, .not-reviewable { color: var(--muted); font-size: 13px; }
+.review-message.error { color: var(--danger); }
+.review-actions { display: flex; gap: 10px; }
+.review-actions button { flex: 1; }
+.reject-button { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+.candidate-choice { display: flex; align-items: center; margin: 0; cursor: pointer; }
+.candidate-choice input { width: auto; margin: 0 7px 0 0; }
+.candidate-card.candidate-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.rejection-detail { color: var(--danger); }
