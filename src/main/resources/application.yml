@@ -20,6 +20,11 @@ logging:
     com.roastlens: DEBUG
 
 roastlens:
+  polling:
+    enabled: ${ROASTLENS_POLLING_ENABLED:false}
+    interval-ms: ${ROASTLENS_POLLING_INTERVAL_MS:3600000}
+    initial-delay-ms: ${ROASTLENS_POLLING_INITIAL_DELAY_MS:60000}
+    language: ${ROASTLENS_POLLING_LANGUAGE:zh-CN}
   content:
     default-language: ${ROASTLENS_DEFAULT_LANGUAGE:zh-CN}
   roastability:
