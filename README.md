@@ -99,6 +99,10 @@ Open `http://localhost:8080`.
 | `ROASTLENS_DEFAULT_LANGUAGE` | no | `zh-CN` | Default candidate-text language; supported values are `zh-CN` and `en-US` |
 | `ROASTLENS_FINSTREAM_BASE_URL` | no | `http://localhost:8081` | FinStream REST API base URL (override if FinStream uses another port) |
 | `ROASTLENS_FINSTREAM_TIMEOUT_SECONDS` | no | `5` | FinStream request timeout |
+| `ROASTLENS_POLLING_ENABLED` | no | `false` | Enable automatic FinStream abnormal-event polling |
+| `ROASTLENS_POLLING_INTERVAL_MS` | no | `3600000` | Fixed delay after a polling run finishes |
+| `ROASTLENS_POLLING_INITIAL_DELAY_MS` | no | `60000` | Delay before the first polling run |
+| `ROASTLENS_POLLING_LANGUAGE` | no | `zh-CN` | Candidate language used by the polling batch |
 | `ROASTLENS_ROASTABILITY_THRESHOLD` | no | `0.6` | Inclusive score threshold for generating candidates |
 | `ROASTLENS_ROAST_MAX_BATCH_SIZE` | no | `20` | Maximum unique abnormal events processed per manual request |
 | `ROASTLENS_DATASOURCE_URL` | no | `jdbc:h2:file:./data/roastlens;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE` | JDBC URL for content inventory persistence |
@@ -149,7 +153,7 @@ curl -X POST \
   "http://localhost:8080/api/v1/roasts/from-finstream/{eventId}?lang=zh-CN"
 ```
 
-This integration is **manual trigger only** and **REST connector only**. It does not discover FinStream automatically. Polling, scheduling, automatic publishing, and MCP integration are not supported.
+This integration uses the REST connector only. Automatic polling is disabled by default, and neither manual nor scheduled execution publishes content.
 
 The call fetches `GET /api/v1/events/{eventId}`, maps the response at the connector boundary, and delegates candidate generation to the existing `FinancialEventRoastService`. FinStream 404 responses become API 404 responses; unavailable, timeout, upstream 5xx, empty, malformed, or incompatible responses become stable 502 responses without exposing upstream response bodies.
 
@@ -178,6 +182,31 @@ The processing path is now `FinStream -> FinancialEvent -> processed-event check
 
 Generated candidates and content-worthiness `SKIPPED` outcomes are retained. Generation errors are retained as `FAILED`, and are not automatically retried; retry policy belongs in a later PR. The single-event endpoint returns retained candidates for an existing `GENERATED` item, or an empty candidate list for a retained `SKIPPED`/`FAILED` item, without calling the LLM again. If a caller requests a language different from the retained item's language, the endpoint returns `409 Conflict` rather than returning candidates in the wrong language. Multilingual variants may be supported in a later PR.
 
+### Scheduled abnormal-event polling
+
+RoastLens can invoke the same abnormal-event batch pipeline on a configurable fixed delay. It is **disabled by default**, so a normal local startup makes no automatic FinStream or LLM calls. Enable it explicitly with:
+
+```bash
+ROASTLENS_POLLING_ENABLED=true
+ROASTLENS_POLLING_INTERVAL_MS=3600000
+ROASTLENS_POLLING_INITIAL_DELAY_MS=60000
+ROASTLENS_POLLING_LANGUAGE=zh-CN
+```
+
+For a short local smoke test:
+
+```bash
+ROASTLENS_POLLING_ENABLED=true \
+ROASTLENS_POLLING_INTERVAL_MS=60000 \
+ROASTLENS_POLLING_INITIAL_DELAY_MS=5000 \
+ROASTLENS_POLLING_LANGUAGE=zh-CN \
+mvn spring-boot:run
+```
+
+The flow is `Spring scheduler -> existing abnormal-event pipeline -> processed-event check -> content-worthiness -> candidate generation -> Content Inventory`. The interval is a fixed delay measured after a run finishes. One configured language is used for each scheduler instance. The scheduler reuses Content Inventory's durable `sourceEventId` tracking, including the existing treatment of `FAILED` items; it does not add a second dedupe or retry mechanism.
+
+An in-process guard prevents overlapping runs in one JVM, and top-level failures are logged and released for the next interval. This is not a distributed scheduling guarantee: multiple application instances can each poll. There is no automatic publishing, review workflow, scheduler UI, or frontend auto-refresh; Content Inventory refresh remains manual.
+
 ### Content Inventory
 
 Read-only inventory endpoints are available:
@@ -192,7 +221,7 @@ The built-in UI at `http://localhost:8080` provides a responsive, read-only Cont
 
 The current default and supported runtime database is file-backed H2 at `./data/roastlens`, so content survives application restarts and requires no Docker database. Hibernate schema update is used for this MVP. The schema and entity design are intended to remain PostgreSQL-compatible, but the PostgreSQL JDBC driver and deployment support are not included yet and will be added later. The inventory contains `ContentItem` source metadata, score, language, `GENERATED`/`SKIPPED`/`FAILED` status, timestamps, and atomically persisted `ContentCandidate` rows.
 
-There is still no scheduler, polling, automatic publishing, approval workflow, image generation, or video generation.
+There is still no automatic publishing, approval workflow, image generation, video generation, or distributed scheduler lock.
 
 ### POST `/api/v1/roasts`
 
