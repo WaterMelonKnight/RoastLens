@@ -88,6 +88,7 @@ function renderContentList() {
 
     const title = element('div', 'item-title');
     title.append(element('span', '', item.symbol || 'Unknown symbol'), statusBadge(item.status));
+    if (item.status === 'GENERATED') title.append(statusBadge(item.reviewStatus || 'PENDING'));
     const eventType = element('div', 'item-event', item.eventType || 'Unknown event type');
     const meta = element('div', 'item-meta');
     meta.append(
@@ -118,52 +119,114 @@ async function copyCandidate(text, button) {
   }
 }
 
+function approvedSection(item) {
+  if (item.reviewStatus !== 'APPROVED') return null;
+  const section = element('section', 'approved-section');
+  section.append(
+    element('h3', '', 'Approved text'),
+    element('p', 'approved-text', item.reviewedText || ''),
+    element('p', 'review-meta', `Selected candidate: ${item.selectedCandidateId || '—'} · Reviewed: ${formatTimestamp(item.reviewedAt)}`)
+  );
+  return section;
+}
+
+async function submitReview(item, action, body, button, message) {
+  button.disabled = true;
+  message.textContent = `${action === 'approve' ? 'Approving' : 'Rejecting'}…`;
+  try {
+    const response = await fetch(`/api/v1/content/${encodeURIComponent(item.id)}/${action}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Review request failed.');
+    inventoryItems = inventoryItems.map(value => value.id === data.id ? data : value);
+    renderContentList();
+    renderContentDetail(data);
+  } catch (error) {
+    message.textContent = error.message;
+    message.classList.add('error');
+    button.disabled = false;
+  }
+}
+
 function renderContentDetail(item) {
   const header = element('header', 'detail-header');
   const badges = element('div', 'badge-row');
-  badges.append(statusBadge(item.status), element('span', 'meta-chip', item.language || 'Unknown language'));
+  badges.append(statusBadge(item.status));
+  if (item.status === 'GENERATED') badges.append(statusBadge(item.reviewStatus || 'PENDING'));
+  badges.append(element('span', 'meta-chip', item.language || 'Unknown language'));
   header.append(element('h3', '', item.symbol || 'Unknown symbol'), element('p', '', item.eventType || 'Unknown event type'), badges);
 
   const metadata = element('dl', 'metadata-grid');
   [
-    ['Source', item.source],
-    ['Source event ID', item.sourceEventId],
-    ['Event time', formatTimestamp(item.eventTime)],
-    ['Detected at', formatTimestamp(item.detectedAt)],
-    ['Content score', formatScore(item.roastabilityScore)],
-    ['Language', item.language],
-    ['Status', item.status],
-    ['Created', formatTimestamp(item.createdAt)],
-    ['Updated', formatTimestamp(item.updatedAt)]
+    ['Source', item.source], ['Source event ID', item.sourceEventId], ['Event time', formatTimestamp(item.eventTime)],
+    ['Detected at', formatTimestamp(item.detectedAt)], ['Content score', formatScore(item.roastabilityScore)],
+    ['Language', item.language], ['Generation status', item.status], ['Review status', item.status === 'GENERATED' ? (item.reviewStatus || 'PENDING') : '—'],
+    ['Created', formatTimestamp(item.createdAt)], ['Updated', formatTimestamp(item.updatedAt)]
   ].forEach(([label, value]) => metadata.appendChild(metadataField(label, value)));
 
   const candidatesSection = element('section', 'candidates-section');
   const candidates = Array.isArray(item.candidates) ? item.candidates : [];
   candidatesSection.appendChild(element('h3', 'candidates-heading', `Candidates (${candidates.length})`));
+  let selectedId = item.selectedCandidateId || null;
+  let finalText = null;
+  const textarea = element('textarea', 'review-text');
+  textarea.rows = 6;
+  textarea.maxLength = 4000;
+  const approve = element('button', 'approve-button', 'Approve');
+  approve.type = 'button';
+  approve.disabled = !selectedId;
+
   if (!candidates.length) {
     candidatesSection.appendChild(element('p', 'no-candidates', 'No candidates were persisted for this content item.'));
   } else {
     candidates.forEach((candidate, index) => {
       const card = element('article', 'candidate-card');
+      if (candidate.id === selectedId) card.classList.add('candidate-selected');
       const cardHead = element('div', 'candidate-card-head');
-      const label = element('span', '', `Candidate ${index + 1}`);
-      const copy = element('button', 'copy-button', 'Copy');
-      copy.type = 'button';
+      const selection = element('label', 'candidate-choice');
+      const radio = element('input');
+      radio.type = 'radio'; radio.name = `candidate-${item.id}`; radio.value = candidate.id;
+      radio.checked = candidate.id === selectedId;
+      selection.append(radio, document.createTextNode(` Candidate ${index + 1}`));
+      radio.addEventListener('change', () => {
+        selectedId = candidate.id; finalText = candidate.text || ''; textarea.value = finalText; textarea.disabled = false; approve.disabled = false;
+        candidatesSection.querySelectorAll('.candidate-card').forEach(node => node.classList.remove('candidate-selected'));
+        card.classList.add('candidate-selected');
+      });
+      const copy = element('button', 'copy-button', 'Copy'); copy.type = 'button';
       copy.addEventListener('click', () => copyCandidate(String(candidate.text || ''), copy));
-      cardHead.append(label, copy);
+      cardHead.append(selection, copy);
       const text = element('p', 'candidate-text', candidate.text || '');
       const candidateMeta = element('div', 'candidate-meta');
-      candidateMeta.append(
-        element('span', 'meta-chip', `style: ${candidate.style || '—'}`),
-        element('span', 'meta-chip', `risk: ${candidate.riskLevel || '—'}`)
-      );
-      card.append(cardHead, text, candidateMeta);
-      candidatesSection.appendChild(card);
+      candidateMeta.append(element('span', 'meta-chip', `style: ${candidate.style || '—'}`), element('span', 'meta-chip', `risk: ${candidate.riskLevel || '—'}`));
+      card.append(cardHead, text, candidateMeta); candidatesSection.appendChild(card);
+      if (candidate.id === selectedId) finalText = item.reviewStatus === 'APPROVED' ? item.reviewedText : candidate.text;
     });
   }
-  contentDetail.replaceChildren(header, metadata, candidatesSection);
-}
 
+  const nodes = [header, metadata];
+  const approved = approvedSection(item); if (approved) nodes.push(approved);
+  if (item.status !== 'GENERATED') {
+    nodes.push(element('p', 'not-reviewable', 'This item is not reviewable.'));
+  } else if (candidates.length) {
+    const review = element('section', 'review-section');
+    review.append(element('h3', '', 'Human review'), element('label', '', 'Final text'));
+    textarea.value = finalText || ''; textarea.placeholder = 'Select a candidate to edit its final text'; textarea.disabled = !selectedId;
+    const message = element('p', 'review-message');
+    const reject = element('button', 'reject-button', 'Reject'); reject.type = 'button';
+    approve.addEventListener('click', () => submitReview(item, 'approve', { candidateId: selectedId, reviewedText: textarea.value }, approve, message));
+    reject.addEventListener('click', () => submitReview(item, 'reject', {}, reject, message));
+    const actions = element('div', 'review-actions'); actions.append(approve, reject);
+    review.append(textarea, actions, message);
+    if (item.reviewStatus === 'REJECTED') {
+      review.append(element('p', 'rejection-detail', item.rejectionReason ? `Rejection reason: ${item.rejectionReason}` : 'This content was rejected.'));
+    }
+    nodes.push(review);
+  }
+  nodes.push(candidatesSection);
+  contentDetail.replaceChildren(...nodes);
+}
 async function loadContentDetail(id) {
   selectedContentId = id;
   renderContentList();

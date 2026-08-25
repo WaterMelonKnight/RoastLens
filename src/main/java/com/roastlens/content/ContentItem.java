@@ -35,6 +35,15 @@ public class ContentItem {
     private String language;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private ContentStatus status;
+    @Enumerated(EnumType.STRING) @Column(length = 20)
+    private ContentReviewStatus reviewStatus;
+    @Column(length = 36)
+    private String selectedCandidateId;
+    @Column(length = 4000)
+    private String reviewedText;
+    private Instant reviewedAt;
+    @Column(length = 500)
+    private String rejectionReason;
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
     @Column(nullable = false)
@@ -58,6 +67,7 @@ public class ContentItem {
         this.roastabilityScore = roastabilityScore;
         this.language = language;
         this.status = status;
+        this.reviewStatus = status == ContentStatus.GENERATED ? ContentReviewStatus.PENDING : null;
         this.createdAt = Instant.now();
         this.updatedAt = createdAt;
         if (candidates != null) this.candidates.addAll(candidates);
@@ -73,6 +83,33 @@ public class ContentItem {
     public double getRoastabilityScore() { return roastabilityScore; }
     public String getLanguage() { return language; }
     public ContentStatus getStatus() { return status; }
+    public ContentReviewStatus getReviewStatus() {
+        // Rows written before review support have null here; generated legacy rows await review.
+        return reviewStatus == null && status == ContentStatus.GENERATED ? ContentReviewStatus.PENDING : reviewStatus;
+    }
+    public String getSelectedCandidateId() { return selectedCandidateId; }
+    public String getReviewedText() { return reviewedText; }
+    public Instant getReviewedAt() { return reviewedAt; }
+    public String getRejectionReason() { return rejectionReason; }
+
+    public void approve(String candidateId, String finalText, Instant reviewedAt) {
+        this.reviewStatus = ContentReviewStatus.APPROVED;
+        this.selectedCandidateId = candidateId;
+        this.reviewedText = finalText;
+        this.reviewedAt = reviewedAt;
+        this.rejectionReason = null;
+        this.updatedAt = reviewedAt;
+    }
+
+    public void reject(String reason, Instant reviewedAt) {
+        this.reviewStatus = ContentReviewStatus.REJECTED;
+        this.selectedCandidateId = null;
+        this.reviewedText = null;
+        this.reviewedAt = reviewedAt;
+        this.rejectionReason = reason;
+        this.updatedAt = reviewedAt;
+    }
+
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public List<ContentCandidate> getCandidates() { return List.copyOf(candidates); }

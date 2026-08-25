@@ -350,3 +350,20 @@ RoastLens is designed for sharp commentary, not abuse.
 ## License
 
 MIT (recommended for open-source adoption; add `LICENSE` file as needed)
+
+## Human review workflow
+
+Persisted content now follows this deliberately small workflow:
+
+`FinancialEvent → generation → Content Inventory → human review → APPROVED / REJECTED`
+
+Generation outcome (`GENERATED`, `SKIPPED`, or `FAILED`) remains separate from review status. New generated items begin as `PENDING`; skipped and failed items have no review status and cannot be reviewed. For compatibility with H2 databases created by earlier versions, all review columns are nullable and generated rows whose stored review status is null are presented as `PENDING`.
+
+A reviewer selects a generated candidate in Content Inventory, optionally edits its text, and approves it. Generated `ContentCandidate.text` is immutable historical output; the final human text is stored separately as `ContentItem.reviewedText`. A reviewer can also reject generated content with an optional reason. The latest decision wins, so generated items may be approved after rejection or re-approved without introducing revision/audit history.
+
+Review endpoints:
+
+- `POST /api/v1/content/{id}/approve` with `{"candidateId":"...","reviewedText":"optional edited text"}`. The candidate must belong to the item. Missing or blank edited text uses the original candidate text.
+- `POST /api/v1/content/{id}/reject` with an optional `{"reason":"..."}` body.
+
+Both return the updated Content Inventory response. Review writes are transactional. This workflow does **not** publish content automatically and adds no publishing integrations, image generation, or video generation.
