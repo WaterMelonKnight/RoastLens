@@ -14,7 +14,7 @@ It is built for local-first MVP speed, clear architecture, and future growth int
 
 ## MVP Features
 
-- Web page for input text + domain + persona selection
+- Built-in static UI with the manual/debug analysis playground, persisted Content Inventory browsing, content detail inspection, and side-by-side candidate comparison
 - `POST /api/analyze` structured analysis API
 - Structured output fields:
   - `summary`
@@ -188,9 +188,11 @@ curl "http://localhost:8080/api/v1/content/{contentItemId}"
 curl "http://localhost:8080/api/v1/content/by-event/{sourceEventId}"
 ```
 
+The built-in UI at `http://localhost:8080` provides a responsive, read-only Content Inventory dashboard alongside the existing manual analysis playground. It loads recent persisted items, supports client-side status/language/symbol filtering, and shows event metadata plus candidate cards for quick comparison. Inventory refresh is manual; candidate text can be copied, but not edited or published.
+
 The current default and supported runtime database is file-backed H2 at `./data/roastlens`, so content survives application restarts and requires no Docker database. Hibernate schema update is used for this MVP. The schema and entity design are intended to remain PostgreSQL-compatible, but the PostgreSQL JDBC driver and deployment support are not included yet and will be added later. The inventory contains `ContentItem` source metadata, score, language, `GENERATED`/`SKIPPED`/`FAILED` status, timestamps, and atomically persisted `ContentCandidate` rows.
 
-There is still no scheduler, polling, automatic publishing, human-review workflow, image generation, or video generation.
+There is still no scheduler, polling, automatic publishing, approval workflow, image generation, or video generation.
 
 ### POST `/api/v1/roasts`
 

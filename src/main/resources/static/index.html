@@ -13,6 +13,15 @@
     <p class="subtitle">Configurable, evidence-driven commentary agent with a safe but sharp tone.</p>
   </header>
 
+  <section class="workspace-section" aria-labelledby="analyzeHeading">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Playground</p>
+        <h2 id="analyzeHeading">Analyze</h2>
+      </div>
+      <p>Manually inspect structured commentary.</p>
+    </div>
+
   <section class="panel">
     <label for="text">Input text</label>
     <textarea id="text" rows="8" placeholder="Paste a market note, opinion, claim, news paragraph, or your own analysis..."></textarea>
@@ -62,6 +71,50 @@
     <div class="result-block">
       <h3>Style meta</h3>
       <pre id="styleMeta"></pre>
+    </div>
+  </section>
+  </section>
+
+  <section class="workspace-section inventory-section" aria-labelledby="inventoryHeading">
+    <div class="section-heading inventory-heading">
+      <div>
+        <p class="eyebrow">Persisted output</p>
+        <h2 id="inventoryHeading">Content Inventory</h2>
+      </div>
+      <button id="refreshContentBtn" class="secondary-button" type="button">Refresh</button>
+    </div>
+
+    <div class="panel inventory-panel">
+      <div class="filters" aria-label="Content filters">
+        <div>
+          <label for="statusFilter">Status</label>
+          <select id="statusFilter">
+            <option value="ALL">ALL</option>
+            <option value="GENERATED">GENERATED</option>
+            <option value="SKIPPED">SKIPPED</option>
+            <option value="FAILED">FAILED</option>
+          </select>
+        </div>
+        <div>
+          <label for="languageFilter">Language</label>
+          <select id="languageFilter"><option value="ALL">ALL</option></select>
+        </div>
+        <div class="symbol-filter">
+          <label for="symbolFilter">Symbol</label>
+          <input id="symbolFilter" type="search" placeholder="Filter symbols" autocomplete="off" />
+        </div>
+      </div>
+
+      <p id="inventoryMessage" class="inventory-message" role="status">Loading content…</p>
+      <div class="inventory-layout">
+        <div id="contentList" class="content-list" aria-label="Recent content"></div>
+        <article id="contentDetail" class="content-detail" aria-live="polite">
+          <div class="detail-placeholder">
+            <h3>Select a content item</h3>
+            <p>Choose an item to inspect its event metadata and candidates.</p>
+          </div>
+        </article>
+      </div>
     </div>
   </section>
 </div>
