@@ -55,14 +55,26 @@ class ContentReviewServiceImplTest {
         }
     }
 
-    @Test void rejectsGeneratedItemAndKeepsCandidates() {
+    @Test void rejectionClearsPriorApprovalAndKeepsCandidates() {
         ContentItem item = generated("evt-1", "original");
+        String candidateId = item.getCandidates().get(0).getId();
         when(repository.findById(item.getId())).thenReturn(Optional.of(item));
-        var result = service.reject(item.getId(), "not useful");
-        assertThat(result.reviewStatus()).isEqualTo(ContentReviewStatus.REJECTED);
-        assertThat(result.reviewedAt()).isNotNull();
-        assertThat(result.rejectionReason()).isEqualTo("not useful");
-        assertThat(result.candidates()).hasSize(1);
+
+        var approved = service.approve(item.getId(), candidateId, "human edit");
+        assertThat(approved.reviewStatus()).isEqualTo(ContentReviewStatus.APPROVED);
+        assertThat(approved.selectedCandidateId()).isEqualTo(candidateId);
+        assertThat(approved.reviewedText()).isEqualTo("human edit");
+
+        var rejected = service.reject(item.getId(), "not useful");
+        assertThat(rejected.reviewStatus()).isEqualTo(ContentReviewStatus.REJECTED);
+        assertThat(rejected.selectedCandidateId()).isNull();
+        assertThat(rejected.reviewedText()).isNull();
+        assertThat(rejected.reviewedAt()).isNotNull();
+        assertThat(rejected.rejectionReason()).isEqualTo("not useful");
+        assertThat(rejected.candidates()).singleElement().satisfies(candidate -> {
+            assertThat(candidate.id()).isEqualTo(candidateId);
+            assertThat(candidate.text()).isEqualTo("original");
+        });
     }
 
     @Test void nonexistentItemHasStableException() {

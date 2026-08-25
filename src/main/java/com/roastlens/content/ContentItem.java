@@ -103,6 +103,8 @@ public class ContentItem {
 
     public void reject(String reason, Instant reviewedAt) {
         this.reviewStatus = ContentReviewStatus.REJECTED;
+        this.selectedCandidateId = null;
+        this.reviewedText = null;
         this.reviewedAt = reviewedAt;
         this.rejectionReason = reason;
         this.updatedAt = reviewedAt;

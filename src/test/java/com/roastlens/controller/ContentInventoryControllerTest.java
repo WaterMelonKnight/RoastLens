@@ -46,10 +46,13 @@ class ContentInventoryControllerTest {
 
 
     @Test void approvesContent() throws Exception {
-        when(review.approve("content-1", "candidate-1", "edited")).thenReturn(item());
+        when(review.approve("content-1", "candidate-1", "edited")).thenReturn(approvedItem());
         mvc.perform(post("/api/v1/content/content-1/approve").contentType(APPLICATION_JSON)
                         .content("{\"candidateId\":\"candidate-1\",\"reviewedText\":\"edited\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.reviewStatus").value("PENDING"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reviewStatus").value("APPROVED"))
+                .andExpect(jsonPath("$.selectedCandidateId").value("candidate-1"))
+                .andExpect(jsonPath("$.reviewedText").value("edited"));
     }
 
     @Test void rejectsContent() throws Exception {
@@ -63,6 +66,13 @@ class ContentInventoryControllerTest {
         mvc.perform(post("/api/v1/content/content-1/approve").contentType(APPLICATION_JSON)
                         .content("{\"candidateId\":\" \"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("candidateId must not be blank"));
+    }
+
+    private ContentItemResponse approvedItem() {
+        return new ContentItemResponse("content-1", "evt-1", "FINSTREAM", "BTCUSDT", "RAPID_DROP",
+                null, null, .8, "zh-CN", ContentStatus.GENERATED, ContentReviewStatus.APPROVED,
+                "candidate-1", "edited", null, null, null, null,
+                List.of(new ContentCandidateResponse("candidate-1", "saved joke", "dry", "low", null)));
     }
 
     private ContentItemResponse item() {
