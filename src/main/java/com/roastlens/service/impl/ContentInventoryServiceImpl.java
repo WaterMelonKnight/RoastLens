@@ -5,10 +5,10 @@ import com.roastlens.content.ContentItem;
 import com.roastlens.content.ContentItemRepository;
 import com.roastlens.content.ContentStatus;
 import com.roastlens.financial.FinancialEventInput;
-import com.roastlens.model.dto.ContentCandidateResponse;
 import com.roastlens.model.dto.ContentItemResponse;
 import com.roastlens.model.dto.RoastCandidate;
 import com.roastlens.service.ContentInventoryService;
+import com.roastlens.service.ContentItemResponseMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -20,9 +20,11 @@ import java.util.Optional;
 @Service
 public class ContentInventoryServiceImpl implements ContentInventoryService {
     private final ContentItemRepository repository;
+    private final ContentItemResponseMapper mapper;
 
-    public ContentInventoryServiceImpl(ContentItemRepository repository) {
+    public ContentInventoryServiceImpl(ContentItemRepository repository, ContentItemResponseMapper mapper) {
         this.repository = repository;
+        this.mapper = mapper;
     }
 
     @Override @Transactional(readOnly = true)
@@ -32,7 +34,7 @@ public class ContentInventoryServiceImpl implements ContentInventoryService {
 
     @Override @Transactional(readOnly = true)
     public Optional<ContentItemResponse> findBySourceEventId(String sourceEventId) {
-        return repository.findBySourceEventId(sourceEventId).map(this::toResponse);
+        return repository.findBySourceEventId(sourceEventId).map(mapper::toResponse);
     }
 
     @Override
@@ -44,25 +46,17 @@ public class ContentInventoryServiceImpl implements ContentInventoryService {
                 .toList();
         ContentItem item = new ContentItem(event.getId(), event.getSource(), event.getSymbol(), event.getEventType(),
                 event.getEventTime(), event.getDetectedAt(), score, language, status, persistedCandidates);
-        return toResponse(repository.saveAndFlush(item));
+        return mapper.toResponse(repository.saveAndFlush(item));
     }
 
     @Override @Transactional(readOnly = true)
     public List<ContentItemResponse> recent(int limit) {
-        return repository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, limit)).stream().map(this::toResponse).toList();
+        return repository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, limit)).stream().map(mapper::toResponse).toList();
     }
 
     @Override @Transactional(readOnly = true)
     public Optional<ContentItemResponse> findById(String id) {
-        return repository.findById(id).map(this::toResponse);
+        return repository.findById(id).map(mapper::toResponse);
     }
 
-    private ContentItemResponse toResponse(ContentItem item) {
-        List<ContentCandidateResponse> candidates = item.getCandidates().stream()
-                .map(candidate -> new ContentCandidateResponse(candidate.getId(), candidate.getText(), candidate.getStyle(),
-                        candidate.getRiskLevel(), candidate.getCreatedAt())).toList();
-        return new ContentItemResponse(item.getId(), item.getSourceEventId(), item.getSource(), item.getSymbol(),
-                item.getEventType(), item.getEventTime(), item.getDetectedAt(), item.getRoastabilityScore(),
-                item.getLanguage(), item.getStatus(), item.getCreatedAt(), item.getUpdatedAt(), candidates);
-    }
 }
