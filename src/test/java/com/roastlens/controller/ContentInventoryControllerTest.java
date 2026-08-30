@@ -5,6 +5,7 @@ import com.roastlens.content.ContentReviewStatus;
 import com.roastlens.model.dto.ContentCandidateResponse;
 import com.roastlens.model.dto.ContentItemResponse;
 import com.roastlens.service.ContentInventoryService;
+import com.roastlens.service.ContentCardService;
 import com.roastlens.service.ContentReviewService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,12 +22,32 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 @WebMvcTest(ContentInventoryController.class)
 class ContentInventoryControllerTest {
     @Autowired MockMvc mvc;
     @MockBean ContentInventoryService inventory;
     @MockBean ContentReviewService review;
+    @MockBean ContentCardService cards;
+
+    @Test void returnsSvgCardContentType() throws Exception {
+        when(cards.renderSvg("content-1")).thenReturn("<svg>approved edited text</svg>");
+        mvc.perform(get("/api/v1/content/content-1/card.svg"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("image/svg+xml"))
+                .andExpect(content().string("<svg>approved edited text</svg>"));
+    }
+
+    @Test void missingCardItemReturns404() throws Exception {
+        when(cards.renderSvg("missing")).thenThrow(new com.roastlens.content.ContentItemNotFoundException("missing"));
+        mvc.perform(get("/api/v1/content/missing/card.svg")).andExpect(status().isNotFound());
+    }
+
+    @Test void ineligibleCardReturns409() throws Exception {
+        when(cards.renderSvg("pending")).thenThrow(new com.roastlens.content.ContentCardUnavailableException("not approved"));
+        mvc.perform(get("/api/v1/content/pending/card.svg")).andExpect(status().isConflict());
+    }
 
     @Test void listsRecentContent() throws Exception {
         when(inventory.recent(20)).thenReturn(List.of(item()));
