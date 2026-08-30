@@ -4,3 +4,4 @@ target/
 *.iml
 data/
 *.log
+.DS_Store

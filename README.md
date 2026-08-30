@@ -4,6 +4,33 @@ RoastLens is an open-source, configurable commentary agent that generates **shar
 
 It is built for local-first MVP speed, clear architecture, and future growth into SaaS, private deployment, or open-core products.
 
+## Docker Quick Start
+
+Docker is the quickest way to run RoastLens with durable local data:
+
+```bash
+git clone <your-repo-url>
+cd RoastLens
+cp .env.example .env
+# Edit .env with the LLM provider and FinStream values you use.
+docker compose up -d
+```
+
+Open <http://localhost:8080>. Polling defaults to **disabled**; set
+`ROASTLENS_POLLING_ENABLED=true` only when you intentionally want automatic FinStream and LLM requests.
+
+Useful commands:
+
+```bash
+docker compose ps
+docker compose logs -f
+docker compose down
+```
+
+`docker compose down` removes the container and network but **does not delete** the named H2 data volume.
+Use `docker compose down -v` only when you explicitly want to permanently delete all persisted RoastLens content.
+Do not commit `.env`; it is ignored by Git and should contain private values only on your machine.
+
 ## Why RoastLens
 
 - **Configurable personas**: plug in style profiles without hard-coding business logic
@@ -75,15 +102,23 @@ mvn package
 
 The tests start the Spring application context, exercise `/api/meta` and `/api/analyze`, and verify structured-output parsing, validation, normalization, and finance disclaimer behavior. They replace `LlmClient` with mocks and never call a real LLM API. GitHub Actions runs the test suite and then packages the executable jar for every pull request and every push to `main`.
 
-## Quick Start (Docker)
+## Container deployment
 
-```bash
-cp .env.example .env
-# edit .env
-docker compose up --build
-```
+The multi-stage image builds the executable jar with Maven and runs it on a Java 17 JRE as an unprivileged
+`roastlens` user. Compose mounts the `roastlens-data` named volume at `/app/data`; the container-only JDBC
+configuration writes H2 to `/app/data/roastlens`, while Maven/local startup continues to use
+`./data/roastlens`. Application logs remain on stdout/stderr.
 
-Open `http://localhost:8080`.
+The health check calls `GET /actuator/health`. Only the Actuator health endpoint is exposed, with details hidden.
+It verifies the application and its local dependencies started; it does not contact FinStream or the LLM. Neither
+upstream is checked during startup, so temporary upstream outages do not prevent RoastLens from starting.
+
+### Docker networking and FinStream
+
+`FINSTREAM_BASE_URL` accepts a hosted URL, a custom/self-hosted URL, or a Docker service URL without code
+changes. Inside a container, `localhost` means the **RoastLens container itself**, not the host. For FinStream
+running on the host, use `http://host.docker.internal:8081` where the Docker platform supports it. Linux setups
+that do not provide that hostname may need a reachable host address or additional Docker host-gateway setup.
 
 ## Environment Variables
 
@@ -97,7 +132,8 @@ Open `http://localhost:8080`.
 | `ROASTLENS_LLM_TIMEOUT_SECONDS` | no | `45` | Request timeout |
 | `ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT` | no | `false` | Whether to request JSON response format on compatible providers |
 | `ROASTLENS_DEFAULT_LANGUAGE` | no | `zh-CN` | Default candidate-text language; supported values are `zh-CN` and `en-US` |
-| `ROASTLENS_FINSTREAM_BASE_URL` | no | `http://localhost:8081` | FinStream REST API base URL (override if FinStream uses another port) |
+| `FINSTREAM_BASE_URL` | no | local: `http://localhost:8081`; Compose: `http://host.docker.internal:8081` | FinStream REST API base URL |
+| `ROASTLENS_FINSTREAM_BASE_URL` | no | - | Backward-compatible higher-priority alias for the FinStream base URL |
 | `ROASTLENS_FINSTREAM_TIMEOUT_SECONDS` | no | `5` | FinStream request timeout |
 | `ROASTLENS_POLLING_ENABLED` | no | `false` | Enable automatic FinStream abnormal-event polling |
 | `ROASTLENS_POLLING_INTERVAL_MS` | no | `3600000` | Fixed delay after a polling run finishes |
@@ -137,6 +173,34 @@ If a provider has weak support for JSON response format, keep:
 ```bash
 ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT=false
 ```
+
+
+## Deployment modes
+
+RoastLens is deliberately independent of where FinStream runs:
+
+- **Mode A — Hosted FinStream:** Hosted FinStream → local RoastLens. Set `FINSTREAM_BASE_URL` to the hosted HTTPS URL. No official public hosted URL is hard-coded.
+- **Mode B — Custom FinStream:** user-managed FinStream → local RoastLens. Set `FINSTREAM_BASE_URL` to the reachable custom URL.
+- **Mode C — Future Full Local:** one Docker Compose project containing FinStream and RoastLens, using `http://finstream:8080`. **The combined compose is not implemented in this PR.** The current compose contains RoastLens only.
+
+API keys remain environment-based. There is no Settings UI, browser secret entry, or database secret storage.
+
+## Container manual smoke-test checklist
+
+1. Copy `.env.example` to `.env`.
+2. Configure current working LLM values.
+3. Configure the FinStream URL.
+4. Run `docker compose up -d`.
+5. Confirm `docker compose ps` shows RoastLens healthy.
+6. Open <http://localhost:8080>.
+7. Confirm the existing UI loads.
+8. Confirm Content Inventory works.
+9. Confirm Human Review works.
+10. Confirm an approved Image Card works.
+11. Restart the container.
+12. Confirm previously persisted H2 content remains.
+13. Confirm `docker compose logs` contains no API key.
+14. Confirm polling remains disabled unless explicitly enabled.
 
 ## API
 

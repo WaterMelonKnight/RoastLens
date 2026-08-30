@@ -19,6 +19,15 @@ logging:
     root: INFO
     com.roastlens: DEBUG
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
 roastlens:
   polling:
     enabled: ${ROASTLENS_POLLING_ENABLED:false}
@@ -31,7 +40,7 @@ roastlens:
     threshold: ${ROASTLENS_ROASTABILITY_THRESHOLD:0.6}
     max-batch-size: ${ROASTLENS_ROAST_MAX_BATCH_SIZE:20}
   finstream:
-    base-url: ${ROASTLENS_FINSTREAM_BASE_URL:http://localhost:8081}
+    base-url: ${ROASTLENS_FINSTREAM_BASE_URL:${FINSTREAM_BASE_URL:http://localhost:8081}}
     timeout-seconds: ${ROASTLENS_FINSTREAM_TIMEOUT_SECONDS:5}
   llm:
     provider: ${ROASTLENS_LLM_PROVIDER:openai-compatible}

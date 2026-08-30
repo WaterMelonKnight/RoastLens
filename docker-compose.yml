@@ -9,10 +9,18 @@ services:
     env_file:
       - .env
     environment:
-      - ROASTLENS_LLM_PROVIDER=${ROASTLENS_LLM_PROVIDER:-openai-compatible}
-      - ROASTLENS_LLM_BASE_URL=${ROASTLENS_LLM_BASE_URL:-https://api.openai.com}
-      - ROASTLENS_LLM_API_KEY=${ROASTLENS_LLM_API_KEY:-}
-      - ROASTLENS_LLM_MODEL=${ROASTLENS_LLM_MODEL:-gpt-4o-mini}
-      - ROASTLENS_LLM_TEMPERATURE=${ROASTLENS_LLM_TEMPERATURE:-0.4}
-      - ROASTLENS_LLM_TIMEOUT_SECONDS=${ROASTLENS_LLM_TIMEOUT_SECONDS:-45}
-      - ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT=${ROASTLENS_LLM_USE_JSON_RESPONSE_FORMAT:-false}
+      FINSTREAM_BASE_URL: ${FINSTREAM_BASE_URL:-http://host.docker.internal:8081}
+      ROASTLENS_DATASOURCE_URL: jdbc:h2:file:/app/data/roastlens;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE
+      ROASTLENS_POLLING_ENABLED: ${ROASTLENS_POLLING_ENABLED:-false}
+    volumes:
+      - roastlens-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  roastlens-data:
