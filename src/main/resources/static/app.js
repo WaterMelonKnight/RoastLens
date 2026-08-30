@@ -168,8 +168,11 @@ function renderContentDetail(item) {
   const candidatesSection = element('section', 'candidates-section');
   const candidates = Array.isArray(item.candidates) ? item.candidates : [];
   candidatesSection.appendChild(element('h3', 'candidates-heading', `Candidates (${candidates.length})`));
-  let selectedId = item.selectedCandidateId || null;
-  let finalText = null;
+  let selectedId = item.selectedCandidateId || (item.status === 'GENERATED' && candidates.length ? candidates[0].id : null);
+  const selectedCandidate = candidates.find(candidate => candidate.id === selectedId);
+  let finalText = item.reviewStatus === 'APPROVED'
+    ? (item.reviewedText ?? '')
+    : (selectedCandidate?.text ?? '');
   const textarea = element('textarea', 'review-text');
   textarea.rows = 6;
   textarea.maxLength = 4000;
@@ -182,6 +185,9 @@ function renderContentDetail(item) {
   } else {
     candidates.forEach((candidate, index) => {
       const card = element('article', 'candidate-card');
+      card.tabIndex = 0;
+      card.setAttribute('role', 'radio');
+      card.setAttribute('aria-checked', String(candidate.id === selectedId));
       if (candidate.id === selectedId) card.classList.add('candidate-selected');
       const cardHead = element('div', 'candidate-card-head');
       const selection = element('label', 'candidate-choice');
@@ -189,24 +195,45 @@ function renderContentDetail(item) {
       radio.type = 'radio'; radio.name = `candidate-${item.id}`; radio.value = candidate.id;
       radio.checked = candidate.id === selectedId;
       selection.append(radio, document.createTextNode(` Candidate ${index + 1}`));
-      radio.addEventListener('change', () => {
+      const selectCandidate = () => {
         selectedId = candidate.id; finalText = candidate.text || ''; textarea.value = finalText; textarea.disabled = false; approve.disabled = false;
-        candidatesSection.querySelectorAll('.candidate-card').forEach(node => node.classList.remove('candidate-selected'));
+        candidatesSection.querySelectorAll('.candidate-card').forEach(node => {
+          node.classList.remove('candidate-selected');
+          node.setAttribute('aria-checked', 'false');
+        });
+        candidatesSection.querySelectorAll('input[type="radio"]').forEach(node => { node.checked = false; });
+        radio.checked = true;
         card.classList.add('candidate-selected');
+        card.setAttribute('aria-checked', 'true');
+      };
+      radio.addEventListener('change', selectCandidate);
+      card.addEventListener('click', event => {
+        if (event.target.closest('.copy-button')) return;
+        selectCandidate();
+      });
+      card.addEventListener('keydown', event => {
+        if (event.target.closest('.copy-button')) return;
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectCandidate();
+        }
       });
       const copy = element('button', 'copy-button', 'Copy'); copy.type = 'button';
-      copy.addEventListener('click', () => copyCandidate(String(candidate.text || ''), copy));
+      copy.addEventListener('click', event => {
+        event.stopPropagation();
+        copyCandidate(String(candidate.text || ''), copy);
+      });
       cardHead.append(selection, copy);
       const text = element('p', 'candidate-text', candidate.text || '');
       const candidateMeta = element('div', 'candidate-meta');
       candidateMeta.append(element('span', 'meta-chip', `style: ${candidate.style || '—'}`), element('span', 'meta-chip', `risk: ${candidate.riskLevel || '—'}`));
       card.append(cardHead, text, candidateMeta); candidatesSection.appendChild(card);
-      if (candidate.id === selectedId) finalText = item.reviewStatus === 'APPROVED' ? item.reviewedText : candidate.text;
     });
   }
 
   const nodes = [header, metadata];
   const approved = approvedSection(item); if (approved) nodes.push(approved);
+  nodes.push(candidatesSection);
   if (item.status !== 'GENERATED') {
     nodes.push(element('p', 'not-reviewable', 'This item is not reviewable.'));
   } else if (candidates.length) {
@@ -224,7 +251,6 @@ function renderContentDetail(item) {
     }
     nodes.push(review);
   }
-  nodes.push(candidatesSection);
   contentDetail.replaceChildren(...nodes);
 }
 async function loadContentDetail(id) {
