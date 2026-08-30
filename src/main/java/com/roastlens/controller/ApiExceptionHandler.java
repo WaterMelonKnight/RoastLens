@@ -3,6 +3,7 @@ package com.roastlens.controller;
 import com.roastlens.content.ContentLanguageConflictException;
 import com.roastlens.content.ContentItemNotFoundException;
 import com.roastlens.content.ContentNotReviewableException;
+import com.roastlens.content.ContentCardUnavailableException;
 import com.roastlens.connector.finstream.FinStreamClientException;
 import com.roastlens.connector.finstream.FinStreamEventNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,11 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    @ExceptionHandler(ContentCardUnavailableException.class)
+    public ResponseEntity<Map<String, String>> handleCardUnavailable(ContentCardUnavailableException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error(ex.getMessage()));
+    }
 
     @ExceptionHandler(ContentLanguageConflictException.class)
     public ResponseEntity<Map<String, String>> handleContentLanguageConflict(ContentLanguageConflictException ex) {

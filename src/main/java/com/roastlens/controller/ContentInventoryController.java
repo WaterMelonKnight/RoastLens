@@ -4,8 +4,10 @@ import com.roastlens.model.dto.ApproveContentRequest;
 import com.roastlens.model.dto.ContentItemResponse;
 import com.roastlens.model.dto.RejectContentRequest;
 import com.roastlens.service.ContentInventoryService;
+import com.roastlens.service.ContentCardService;
 import com.roastlens.service.ContentReviewService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,10 +24,12 @@ import java.util.List;
 public class ContentInventoryController {
     private final ContentInventoryService inventory;
     private final ContentReviewService review;
+    private final ContentCardService cards;
 
-    public ContentInventoryController(ContentInventoryService inventory, ContentReviewService review) {
+    public ContentInventoryController(ContentInventoryService inventory, ContentReviewService review, ContentCardService cards) {
         this.inventory = inventory;
         this.review = review;
+        this.cards = cards;
     }
 
     @GetMapping
@@ -37,6 +41,11 @@ public class ContentInventoryController {
     @GetMapping("/{id}")
     public ResponseEntity<ContentItemResponse> byId(@PathVariable String id) {
         return ResponseEntity.of(inventory.findById(id));
+    }
+
+    @GetMapping(value = "/{id}/card.svg", produces = "image/svg+xml")
+    public ResponseEntity<String> card(@PathVariable String id) {
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType("image/svg+xml")).body(cards.renderSvg(id));
     }
 
     @PostMapping("/{id}/approve")

@@ -120,14 +120,68 @@ async function copyCandidate(text, button) {
 }
 
 function approvedSection(item) {
-  if (item.reviewStatus !== 'APPROVED') return null;
+  if (item.status !== 'GENERATED' || item.reviewStatus !== 'APPROVED' || !String(item.reviewedText || '').trim()) return null;
   const section = element('section', 'approved-section');
+  const cardUrl = `/api/v1/content/${encodeURIComponent(item.id)}/card.svg?v=${encodeURIComponent(item.updatedAt || '')}`;
+  const preview = element('img', 'card-preview');
+  preview.src = cardUrl;
+  preview.alt = `Approved RoastLens image card for ${item.symbol || 'market event'}`;
+  const filename = `roastlens-${safeFilename(item.symbol)}-${safeFilename(item.eventType)}`;
+  const svgButton = element('button', 'secondary-button', 'Download SVG'); svgButton.type = 'button';
+  const pngButton = element('button', 'secondary-button', 'Download PNG'); pngButton.type = 'button';
+  svgButton.addEventListener('click', () => downloadSvg(cardUrl, `${filename}.svg`, svgButton));
+  pngButton.addEventListener('click', () => downloadPng(cardUrl, `${filename}.png`, pngButton));
+  const actions = element('div', 'output-actions'); actions.append(svgButton, pngButton);
   section.append(
-    element('h3', '', 'Approved text'),
+    element('h3', '', 'Approved Output'),
+    element('h4', '', 'Approved text'),
     element('p', 'approved-text', item.reviewedText || ''),
-    element('p', 'review-meta', `Selected candidate: ${item.selectedCandidateId || '—'} · Reviewed: ${formatTimestamp(item.reviewedAt)}`)
+    element('p', 'review-meta', `Reviewed: ${formatTimestamp(item.reviewedAt)}`),
+    preview,
+    actions
   );
   return section;
+}
+
+function safeFilename(value) {
+  const clean = String(value || 'market').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '');
+  return clean || 'market';
+}
+
+function saveBlob(blob, filename) {
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+async function fetchCard(url) {
+  const response = await fetch(url, { cache: 'no-store' });
+  if (!response.ok) throw new Error('Card download is unavailable.');
+  return response.blob();
+}
+
+async function downloadSvg(url, filename, button) {
+  button.disabled = true;
+  try { saveBlob(await fetchCard(url), filename); } finally { button.disabled = false; }
+}
+
+async function downloadPng(url, filename, button) {
+  button.disabled = true;
+  let objectUrl;
+  try {
+    objectUrl = URL.createObjectURL(await fetchCard(url));
+    const image = new Image();
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = objectUrl; });
+    const canvas = document.createElement('canvas'); canvas.width = 1200; canvas.height = 1200;
+    canvas.getContext('2d').drawImage(image, 0, 0, 1200, 1200);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('PNG conversion failed.');
+    saveBlob(blob, filename);
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    button.disabled = false;
+  }
 }
 
 async function submitReview(item, action, body, button, message) {
@@ -167,7 +221,7 @@ function renderContentDetail(item) {
 
   const candidatesSection = element('section', 'candidates-section');
   const candidates = Array.isArray(item.candidates) ? item.candidates : [];
-  candidatesSection.appendChild(element('h3', 'candidates-heading', `Candidates (${candidates.length})`));
+  candidatesSection.appendChild(element('h4', 'candidates-heading', `Step 1: Choose a candidate (${candidates.length})`));
   let selectedId = item.selectedCandidateId || (item.status === 'GENERATED' && candidates.length ? candidates[0].id : null);
   const selectedCandidate = candidates.find(candidate => candidate.id === selectedId);
   let finalText = item.reviewStatus === 'APPROVED'
@@ -232,13 +286,12 @@ function renderContentDetail(item) {
   }
 
   const nodes = [header, metadata];
-  const approved = approvedSection(item); if (approved) nodes.push(approved);
-  nodes.push(candidatesSection);
   if (item.status !== 'GENERATED') {
+    nodes.push(candidatesSection);
     nodes.push(element('p', 'not-reviewable', 'This item is not reviewable.'));
   } else if (candidates.length) {
-    const review = element('section', 'review-section');
-    review.append(element('h3', '', 'Human review'), element('label', '', 'Final text'));
+    const review = element('section', 'review-workspace');
+    review.append(element('h3', '', 'Human Review'), candidatesSection, element('h4', 'review-step', 'Step 2: Final text'), element('label', 'visually-hidden', 'Final text'));
     textarea.value = finalText || ''; textarea.placeholder = 'Select a candidate to edit its final text'; textarea.disabled = !selectedId;
     const message = element('p', 'review-message');
     const reject = element('button', 'reject-button', 'Reject'); reject.type = 'button';
@@ -250,7 +303,10 @@ function renderContentDetail(item) {
       review.append(element('p', 'rejection-detail', item.rejectionReason ? `Rejection reason: ${item.rejectionReason}` : 'This content was rejected.'));
     }
     nodes.push(review);
+  } else {
+    nodes.push(candidatesSection);
   }
+  const approved = approvedSection(item); if (approved) nodes.push(approved);
   contentDetail.replaceChildren(...nodes);
 }
 async function loadContentDetail(id) {

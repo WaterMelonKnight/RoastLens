@@ -14,7 +14,7 @@ It is built for local-first MVP speed, clear architecture, and future growth int
 
 ## MVP Features
 
-- Built-in static UI with the manual/debug analysis playground, persisted Content Inventory browsing, content detail inspection, and side-by-side candidate comparison
+- Built-in static UI centered on Content Inventory, coherent Human Review, and approved social-card output; the manual Analyze Playground remains available as a collapsed developer tool
 - `POST /api/analyze` structured analysis API
 - Structured output fields:
   - `summary`
@@ -217,11 +217,11 @@ curl "http://localhost:8080/api/v1/content/{contentItemId}"
 curl "http://localhost:8080/api/v1/content/by-event/{sourceEventId}"
 ```
 
-The built-in UI at `http://localhost:8080` provides a responsive, read-only Content Inventory dashboard alongside the existing manual analysis playground. It loads recent persisted items, supports client-side status/language/symbol filtering, and shows event metadata plus candidate cards for quick comparison. Inventory refresh is manual; candidate text can be copied, but not edited or published.
+The built-in UI at `http://localhost:8080` makes the responsive Content Inventory dashboard the primary workspace. It loads recent persisted items, supports client-side status/language/symbol filtering, and groups candidate comparison, selection, final-text editing, approval, and rejection into one Human Review workspace. The existing Analyze Playground remains available in a collapsed **Developer tools** section.
 
 The current default and supported runtime database is file-backed H2 at `./data/roastlens`, so content survives application restarts and requires no Docker database. Hibernate schema update is used for this MVP. The schema and entity design are intended to remain PostgreSQL-compatible, but the PostgreSQL JDBC driver and deployment support are not included yet and will be added later. The inventory contains `ContentItem` source metadata, score, language, `GENERATED`/`SKIPPED`/`FAILED` status, timestamps, and atomically persisted `ContentCandidate` rows.
 
-There is still no automatic publishing, approval workflow, image generation, video generation, or distributed scheduler lock.
+There is still no automatic publishing, AI image generation, video generation, or distributed scheduler lock.
 
 ### POST `/api/v1/roasts`
 
@@ -367,3 +367,19 @@ Review endpoints:
 - `POST /api/v1/content/{id}/reject` with an optional `{"reason":"..."}` body.
 
 Both return the updated Content Inventory response. Review writes are transactional. This workflow does **not** publish content automatically and adds no publishing integrations, image generation, or video generation.
+
+## Approved image cards
+
+The current end-to-end content workflow is:
+
+`FinStream → FinancialEvent → RoastLens generation → Content Inventory → Human Review → Approved Output → Image Card`
+
+An image card is available only when a content item has generation status `GENERATED`, review status `APPROVED`, and nonblank persisted `reviewedText`. The canonical 1200 × 1200 SVG uses the approved edited text—not an unapproved candidate—and is rendered deterministically on demand:
+
+```bash
+curl "http://localhost:8080/api/v1/content/{contentItemId}/card.svg" > roastlens-card.svg
+```
+
+Pending, rejected, skipped, and failed content returns `409 Conflict`; an unknown item returns `404 Not Found`. Card bytes are not stored in the database or filesystem. The renderer uses escaped SVG text and deterministic wrapping, calls no LLM or image-generation service, and requires no desktop graphics environment.
+
+After approval, **Approved Output** immediately shows the persisted approved text and same-origin SVG preview. **Download SVG** fetches the canonical card, while **Download PNG** performs lightweight in-browser SVG-to-canvas conversion. Refreshing or re-approving derives the preview from the latest persisted content; rejecting removes it while retaining the original candidates. Automatic social publishing is not implemented.

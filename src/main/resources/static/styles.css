@@ -44,6 +44,11 @@ h2, h3, p {
   margin-top: 28px;
 }
 
+.developer-tools { border: 1px solid var(--line); border-radius: 12px; background: #12161d; }
+.developer-tools summary { display: flex; gap: 10px; align-items: baseline; padding: 16px 18px; cursor: pointer; color: var(--muted); }
+.developer-tools summary strong { color: var(--text); }
+.developer-tools-body { padding: 0 16px 16px; }
+
 .section-heading {
   display: flex;
   align-items: end;
@@ -388,10 +393,13 @@ pre {
 .status-pending { color: var(--warning); border-color: #71572c; }
 .status-approved { color: var(--success); border-color: #28684f; }
 .status-rejected { color: var(--danger); border-color: #753b3b; }
-.review-section, .approved-section, .not-reviewable {
+.review-section, .review-workspace, .approved-section, .not-reviewable {
   margin: 18px 0 24px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: #12161d;
 }
-.review-section h3, .approved-section h3 { margin-top: 0; }
+.review-section h3, .review-workspace > h3, .approved-section h3, .approved-section h4 { margin-top: 0; }
+.review-workspace { background: #141922; }
+.review-step { margin: 24px 0 10px; }
+.approved-section { border-color: #28684f; background: #111d19; }
 .approved-text { white-space: pre-wrap; font-size: 19px; line-height: 1.55; }
 .review-meta, .review-message, .not-reviewable { color: var(--muted); font-size: 13px; }
 .review-message.error { color: var(--danger); }
@@ -403,3 +411,7 @@ pre {
 .candidate-card.candidate-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .candidate-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .rejection-detail { color: var(--danger); }
+.card-preview { display: block; width: min(100%, 560px); height: auto; aspect-ratio: 1; margin: 18px auto; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.output-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.output-actions button { flex: 1 1 150px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
