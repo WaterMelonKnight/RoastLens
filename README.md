@@ -9,7 +9,7 @@ It is built for local-first MVP speed, clear architecture, and future growth int
 Docker is the quickest way to run RoastLens with durable local data:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/WaterMelonKnight/RoastLens.git
 cd RoastLens
 cp .env.example .env
 # Edit .env with the LLM provider and FinStream values you use.
@@ -139,7 +139,7 @@ that do not provide that hostname may need a reachable host address or additiona
 | `ROASTLENS_POLLING_INTERVAL_MS` | no | `3600000` | Fixed delay after a polling run finishes |
 | `ROASTLENS_POLLING_INITIAL_DELAY_MS` | no | `60000` | Delay before the first polling run |
 | `ROASTLENS_POLLING_LANGUAGE` | no | `zh-CN` | Candidate language used by the polling batch |
-| `ROASTLENS_ROASTABILITY_THRESHOLD` | no | `0.6` | Inclusive score threshold for generating candidates |
+| `ROASTLENS_ROASTABILITY_THRESHOLD` | no | `0.5` | Inclusive score threshold for generating candidates |
 | `ROASTLENS_ROAST_MAX_BATCH_SIZE` | no | `20` | Maximum unique abnormal events processed per manual request |
 | `ROASTLENS_DATASOURCE_URL` | no | `jdbc:h2:file:./data/roastlens;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE` | JDBC URL for content inventory persistence |
 | `ROASTLENS_DATASOURCE_USERNAME` | no | `sa` | Database username |
