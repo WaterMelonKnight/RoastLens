@@ -1,13 +1,16 @@
-# Build stage
-FROM maven:3.9.8-eclipse-temurin-17 AS builder
+# syntax=docker/dockerfile:1
+FROM maven:3.9.9-eclipse-temurin-17-alpine AS build
 WORKDIR /app
-COPY pom.xml /app/pom.xml
-COPY src /app/src
-RUN mvn -q -DskipTests package
+COPY pom.xml ./
+RUN mvn -B -q dependency:go-offline
+COPY src ./src
+RUN mvn -B -q -DskipTests package && cp target/roastlens-*.jar /tmp/roastlens.jar
 
-# Runtime stage
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:17-jre-alpine
+RUN addgroup -S roastlens && adduser -S -G roastlens -h /app roastlens \
+    && mkdir -p /app/data && chown -R roastlens:roastlens /app
 WORKDIR /app
-COPY --from=builder /app/target/roastlens-0.1.0.jar /app/roastlens.jar
+COPY --from=build --chown=roastlens:roastlens /tmp/roastlens.jar ./roastlens.jar
+USER roastlens
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/roastlens.jar"]
+ENTRYPOINT ["java", "-jar", "roastlens.jar"]
